@@ -1,0 +1,67 @@
+{
+  "name": "@knoku/widget",
+  "version": "0.1.0",
+  "description": "AI-powered documentation chat widget. Embed via CDN script or npm — Shadow DOM isolated, ~25KB gzip.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./widget.js": "./dist/widget.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "./dist/widget.js"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:loader && npm run build:sdk && npm run build:types",
+    "build:loader": "cross-env KNOKU_BUILD_TARGET=loader vite build",
+    "build:sdk": "cross-env KNOKU_BUILD_TARGET=sdk vite build",
+    "build:types": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "knoku",
+    "chatbot",
+    "widget",
+    "docs"
+  ],
+  "author": "Knoku",
+  "license": "MIT",
+  "homepage": "https://github.com/getknoku/widget#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getknoku/widget.git"
+  },
+  "bugs": {
+    "url": "https://github.com/getknoku/widget/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "preact": "^10.29.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.5",
+    "cross-env": "^7.0.3",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
+  }
+}

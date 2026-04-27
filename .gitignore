@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output (npm publish regenerates dist; don't track build artifacts)
+dist/
+example.html
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
