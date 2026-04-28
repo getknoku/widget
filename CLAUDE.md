@@ -10,7 +10,7 @@ This guide covers stack constraints, the Shadow DOM contract, the embed API surf
 - **Vite 8** + `@preact/preset-vite` — one `vite.config.ts`, two targets driven by `KNOKU_BUILD_TARGET` env var (see Build targets).
 - **TypeScript 6** — types emitted by `tsc -p tsconfig.build.json` (separate step, not Vite).
 - **Zero runtime deps besides `preact`** — no signals, no fetch wrapper, no state library. Pure hooks + native `fetch` + manual SSE parsing.
-- **Shadow DOM** for style isolation; CSS is a single template literal in `src/widget.tsx`, not a `.css` file.
+- **Shadow DOM** for style isolation; CSS source lives in `src/widget.css` and is imported into `widget.tsx` via Vite's `?inline` query so it is minified and inlined as a single string at build time.
 - **No test framework today** — open an issue before adding one so we can align on choice and scope.
 
 Do **not** add any of:
@@ -18,7 +18,7 @@ Do **not** add any of:
 - `preact/compat`, `react`, `react-dom`, `@preact/signals`, `zustand`, any state lib
 - `@tanstack/react-query`, `swr` — there is no cacheable read path; `useChat` streams
 - `styled-components`, `emotion`, CSS-in-JS runtime — bundle must stay tiny
-- A CSS file + `import './style.css'` — keep CSS inline in `widget.tsx` so Shadow DOM injection stays atomic
+- A CSS file imported as a side-effect (`import './style.css'`) — Shadow DOM injection requires a string we can attach with `textContent`, which is why `widget.css` is imported with the `?inline` query
 - Anything that ships React runtime
 - A framework for embedding (LitElement, Stencil) — the mount API is intentionally ~30 lines
 
@@ -49,7 +49,8 @@ src/
   sdk.ts                      initKnokuWidget, mountKnokuWidget, fetchWidgetConfig,
                               createWidgetConfig, DEFAULT_WIDGET_CONFIG, cleanup, injectNavbarTrigger
   widget.tsx                  <Widget/> Preact component + mountWithCleanup + mount +
-                              the full CSS template literal (scroll to bottom, ~line 215+)
+                              per-slot style override compiler
+  widget.css                  CSS payload, imported via `?inline` (Vite minifies + inlines as string)
   types.ts                    WidgetConfig, KnokuWidgetRuntime, KnokuWidgetInitOptions,
                               Message, SSEEvent, SourceRef, StatusStep
   theme.ts                    detectHostTheme, watchTheme (prefers-color-scheme + host classes)
@@ -61,8 +62,8 @@ tsconfig.json                 dev tsconfig
 tsconfig.build.json           emits .d.ts to dist/
 ```
 
-- Don't split `widget.tsx` — keeping the component + mount + CSS in one file keeps the bundle map legible.
-- Don't create a `styles/` directory or a separate `.css` file. CSS lives inline.
+- Don't split `widget.tsx` — keeping the component + mount + style-override compiler in one file keeps the bundle map legible.
+- Keep all CSS in `widget.css`; don't create a `styles/` directory or split into multiple stylesheets. The single-string-into-Shadow-DOM contract requires one file imported via `?inline`.
 - Don't add a `public/` directory. The widget is pure JS; there are no static assets.
 
 ## Embed contract
@@ -210,7 +211,7 @@ Pure Preact hooks. Hot rules:
 Three independent knobs — don't collapse them:
 
 - **`config.theme`** = `'auto' | 'light' | 'dark'`. Dashboard has no theme selector. Default `auto` uses `theme.ts:detectHostTheme` (host `<html class="dark">`, `data-theme`, `prefers-color-scheme`) and `watchTheme` to follow host changes live. `light` / `dark` are programmatic-only overrides.
-- **Default token set** lives in the `widget.tsx` CSS template literal. There is no named palette system.
+- **Default token set** lives in `widget.css` (`.knoku-root` and `.knoku-root.knoku-dark` rules). There is no named palette system.
 - **`config.primaryColorLight` + `config.primaryColorDark`** = two CSS colors. `applyTheme(dark)` in `widget.tsx:mountWithCleanup` writes the active one to `--knoku-primary-accent`, `--primary`, and `--focus-ring` on the widget root whenever the resolved theme changes.
 
 Don't hardcode colors in component files. For theme-dependent color, use CSS vars via `var(--name)`. For the accent, use `var(--knoku-primary-accent)`.
@@ -249,12 +250,12 @@ Don't hardcode colors in component files. For theme-dependent color, use CSS var
 - **Don't** remove the `knoku-page-push` `<style>` — it's the one intentional host-DOM mutation.
 - **Don't** mutate host DOM (inject buttons, wrap search inputs, etc.). Host sites own trigger placement and call `window.Knoku.*`.
 - **Don't** send images as Blob / FormData — chat body stays JSON, `image` is a base64 data URL string (5 MB cap).
-- **Don't** reintroduce named palettes; the default token set lives in `widget.tsx` and accent colors flow through CSS vars.
+- **Don't** reintroduce named palettes; the default token set lives in `widget.css` and accent colors flow through CSS vars.
 - **Don't** switch to EventSource for chat streaming. POST-body streaming requires fetch + reader.
 - **Don't** route widget requests through Knoku's Next.js `/api/backend` proxy — customer sites can't reach it.
 - **Don't** add persistence (localStorage, cookies) silently. Session-in-memory is the current contract.
 - **Don't** change Shadow DOM mode from `'open'` to `'closed'`.
-- **Don't** split CSS out of `widget.tsx` into a separate file — single template literal is required for the IIFE bundle.
+- **Don't** split `widget.css` into multiple files — `?inline` imports a single string that we inject into the Shadow root.
 - **Don't** skip a `build:*` sub-step before publish. All three must run.
 - **Do** extend `useChat` instead of forking.
 - **Do** respect config merge priority: local + defaults, with remote used only for server-controlled status/branding.

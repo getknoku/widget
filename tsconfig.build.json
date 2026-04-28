@@ -9,5 +9,5 @@
     "outDir": "dist",
     "declarationDir": "dist"
   },
-  "include": ["src/index.ts", "src/sdk.ts", "src/types.ts", "src/widget.tsx", "src/components", "src/hooks"]
+  "include": ["src/index.ts", "src/sdk.ts", "src/types.ts", "src/widget.tsx", "src/components", "src/hooks", "src/vite-env.d.ts"]
 }
