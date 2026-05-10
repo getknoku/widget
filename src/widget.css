@@ -382,7 +382,10 @@
 .knoku-attach-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
 .knoku-send-btn {
   width: 32px; height: 32px; border-radius: 10px; border: none;
-  color: #fff; cursor: pointer; display: flex;
+  /* `var(--bg)` keeps text readable on both neutral primaries — dark text
+     in dark mode (accent is near-white), white text in light mode (accent
+     is near-black). Background color is set inline by the caller. */
+  color: var(--bg); cursor: pointer; display: flex;
   align-items: center; justify-content: center;
   flex-shrink: 0; transition: opacity 0.1s; margin-left: auto;
 }
@@ -450,7 +453,11 @@
   border: 1px solid transparent; font-family: inherit;
 }
 .knoku-consent-accept {
-  color: #fff; background: var(--knoku-primary-accent);
+  /* Use `var(--bg)` so text contrasts with the primary background in BOTH
+     themes — `#fff` was invisible in dark mode where primary resolves to
+     near-white. Light mode → near-black bg + white text; dark mode →
+     near-white bg + near-black text. */
+  color: var(--bg); background: var(--knoku-primary-accent);
 }
 .knoku-consent-reject {
   background: transparent; color: var(--text-secondary);
