@@ -29,9 +29,6 @@ export function ConsentScreen({ consent, onAccept, onReject, onClose }: Props) {
           dangerouslySetInnerHTML={{ __html: renderConsentMarkdown(consent.disclaimer) }}
         />
         <div class="knoku-consent-actions">
-          <button type="button" class="knoku-consent-reject" onClick={onReject}>
-            {consent.rejectText}
-          </button>
           <button
             type="button"
             class="knoku-consent-accept"
@@ -39,6 +36,9 @@ export function ConsentScreen({ consent, onAccept, onReject, onClose }: Props) {
             onClick={onAccept}
           >
             {consent.acceptText}
+          </button>
+          <button type="button" class="knoku-consent-reject" onClick={onReject}>
+            {consent.rejectText}
           </button>
         </div>
       </div>

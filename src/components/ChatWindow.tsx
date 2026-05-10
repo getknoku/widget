@@ -9,6 +9,7 @@ import type { WidgetConfig } from '../types'
 import type { UIStrings } from '../i18n'
 import { useChat } from '../hooks/useChat'
 import { Message } from './Message'
+import { resolveIcon } from '../icons'
 
 interface Props {
   config: WidgetConfig
@@ -63,7 +64,7 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
   const handleSubmit = (e: Event) => {
     e.preventDefault()
     const q = input.trim()
-    if (!q || isLoading) return
+    if (q.length < 5 || isLoading) return
     const img = imagePreview || undefined
     setInput('')
     setImageFile(null)
@@ -82,9 +83,9 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
     <div class="knoku-panel">
       <div class="knoku-header">
         <div class="knoku-header-left">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
-            <path d="M12 2.75l2.45 6.8L21.25 12l-6.8 2.45L12 21.25l-2.45-6.8L2.75 12l6.8-2.45L12 2.75z"/>
-            <path d="M5.25 3.75l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6.6-1.6z"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
           </svg>
           <span>{t.assistant}</span>
         </div>
@@ -98,23 +99,9 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
       </div>
 
       <div class="knoku-messages" ref={messagesRef}>
-        {messages.length === 0 && !isLoading && (
+        {messages.length === 0 && !isLoading && config.greeting && (
           <div class="knoku-greeting">
             {config.greeting}
-            {config.suggestedQuestions?.length > 0 && (
-              <div class="knoku-suggestions">
-                {config.suggestedQuestions.map((q) => (
-                  <button
-                    key={q}
-                    class="knoku-suggestion-chip"
-                    onClick={() => sendMessage(q)}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div class="knoku-disclaimer">{t.aiDisclaimer}</div>
           </div>
         )}
         {messages.map((msg, i) => {
@@ -137,6 +124,36 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
         })}
       </div>
 
+      {messages.length === 0 && !isLoading && config.suggestedQuestions?.length > 0 && (
+        <div class="knoku-suggestions">
+          {config.suggestedQuestions.map((q) => (
+            <button
+              key={q.text}
+              class="knoku-suggestion-chip"
+              onClick={() => sendMessage(q.text)}
+            >
+              <svg
+                class="knoku-suggestion-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                dangerouslySetInnerHTML={{ __html: resolveIcon(q.icon) }}
+              />
+              <span>{q.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {messages.length === 0 && !isLoading && (
+        <div class="knoku-disclaimer">{t.aiDisclaimer}</div>
+      )}
+
       <form
         class="knoku-input-area"
         onSubmit={handleSubmit}
@@ -157,7 +174,9 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
             placeholder={t.askPlaceholder}
             value={input}
             onInput={(e) => setInput((e.target as HTMLTextAreaElement).value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e) } }}
+            onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e) } }}
+            onKeyUp={(e) => e.stopPropagation()}
+            onKeyPress={(e) => e.stopPropagation()}
             disabled={isLoading}
             rows={1}
           />
@@ -180,7 +199,7 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
             <button
               class="knoku-send-btn"
               type="submit"
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || input.trim().length < 5}
               style={{ backgroundColor: 'var(--knoku-primary-accent)' }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

@@ -22,6 +22,7 @@ import { readConsent, writeConsent } from './cookie'
 import { setIdentity } from './identity'
 import { getDictionary } from './i18n'
 import { ALLOWED_CSS_PROPERTIES, ALLOWED_STATES, type AllowedState } from './component-style-spec'
+import { resolveIcon } from './icons'
 // CSS source lives in `widget.css`; Vite's `?inline` import returns the
 // minified CSS as a string at build time, so the IIFE bundle still ships
 // a single payload that we inject into the Shadow root.
@@ -93,10 +94,15 @@ function Widget({ config }: Props) {
   }
   const needsConsent = config.consent.required && consentState !== 'accepted' && isOpen
 
-  // Inject a host-side <style> tag (outside the Shadow DOM) that adds a
-  // right-margin to body when the panel is open, so site content is not
-  // covered by the chat panel. Reset on close. Mobile: no margin.
+  // `layout: 'push'` adds a right-margin to body when the panel is open so
+  // the site content shifts left and the panel looks embedded. Default
+  // `overlay` skips the margin entirely — the panel floats above the
+  // existing layout. Mobile (<640px) never pushes regardless of mode.
   useEffect(() => {
+    if (config.layout !== 'push') {
+      document.getElementById(PAGE_PUSH_STYLE_ID)?.remove()
+      return
+    }
     const pageStyle = document.getElementById(PAGE_PUSH_STYLE_ID) || (() => {
       const s = document.createElement('style')
       s.id = PAGE_PUSH_STYLE_ID
@@ -106,7 +112,7 @@ function Widget({ config }: Props) {
     pageStyle.textContent = isOpen
       ? 'body { margin-right: 440px !important; transition: margin-right 0.2s ease; } @media (max-width: 640px) { body { margin-right: 0 !important; } }'
       : 'body { transition: margin-right 0.2s ease; }'
-  }, [isOpen])
+  }, [isOpen, config.layout])
 
   const handleBarOpen = () => {
     setIsOpen(true)
@@ -126,6 +132,7 @@ function Widget({ config }: Props) {
           label={normalizeLauncherText(config.launcherText || 'Need help?')}
           subtitle={normalizeLauncherSubtitle(config.launcherSubtitle || 'Ask AI')}
           align={config.launcherAlign}
+          icon={config.launcherIcon}
           onOpen={handleBarOpen}
         />
       )}
@@ -161,11 +168,13 @@ function BottomBar({
   label,
   subtitle,
   align,
+  icon,
   onOpen,
 }: {
   label: string
   subtitle: string
   align: WidgetConfig['launcherAlign']
+  icon: string
   onOpen: () => void
 }) {
   return (
@@ -176,17 +185,27 @@ function BottomBar({
       onClick={() => onOpen()}
     >
       <span class="knoku-bar-inner">
-        <span class="knoku-bar-mark" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
-            <path d="M12 2.75l2.45 6.8L21.25 12l-6.8 2.45L12 21.25l-2.45-6.8L2.75 12l6.8-2.45L12 2.75z"/>
-          </svg>
+        <span
+          class="knoku-bar-mark"
+          aria-hidden="true">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            dangerouslySetInnerHTML={{ __html: resolveIcon(icon) }}
+          />
         </span>
         <span class="knoku-bar-copy">
           <span class="knoku-bar-input">{label}</span>
           {subtitle && <span class="knoku-bar-subtitle">{subtitle}</span>}
         </span>
         <span class="knoku-bar-send" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h12"/>
             <path d="M13 6l6 6-6 6"/>
           </svg>
@@ -308,6 +327,9 @@ const COMPONENT_SELECTOR_MAP: Record<string, string> = {
   'launcher': '.knoku-bar',
   'bottom-bar': '.knoku-bar-inner',
   'launcher-text': '.knoku-bar-input',
+  'launcher-subtitle': '.knoku-bar-subtitle',
+  'launcher-mark': '.knoku-bar-mark',
+  'launcher-send': '.knoku-bar-send',
   'submit-button': '.knoku-send-btn',
   'user-bubble': '.knoku-msg-user-bubble',
   'assistant-answer': '.knoku-answer',
@@ -347,7 +369,7 @@ function buildComponentStyleCSS(overrides: Record<string, Record<string, string>
       if (!ALLOWED_CSS_PROPERTIES.has(prop)) continue
       if (typeof value !== 'string') continue
       if (!isSafeCSSValue(value)) continue
-      decls.push(`${prop}: ${value};`)
+      decls.push(...expandComponentStyleDeclarations(prop, value))
     }
     if (decls.length === 0) continue
     const rootClass = parsed.dark ? '.knoku-root.knoku-dark' : '.knoku-root'
@@ -355,6 +377,21 @@ function buildComponentStyleCSS(overrides: Record<string, Record<string, string>
     rules.push(`${rootClass} ${selector}${stateSuffix} { ${decls.join(' ')} }`)
   }
   return rules.join('\n')
+}
+
+function expandComponentStyleDeclarations(prop: string, value: string): string[] {
+  switch (prop) {
+    case 'padding-x':
+      return [`padding-left: ${value};`, `padding-right: ${value};`]
+    case 'padding-y':
+      return [`padding-top: ${value};`, `padding-bottom: ${value};`]
+    case 'margin-x':
+      return [`margin-left: ${value};`, `margin-right: ${value};`]
+    case 'margin-y':
+      return [`margin-top: ${value};`, `margin-bottom: ${value};`]
+    default:
+      return [`${prop}: ${value};`]
+  }
 }
 
 function parseStyleKey(key: string): { slot: string; state?: AllowedState; dark: boolean } | null {

@@ -1,29 +1,36 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ===== Theme Variables ===== */
+/* Defaults match Knoku's brand source of truth (frontend/src/app/globals.css):
+   pure neutral grays (Tailwind neutral scale, no slate/zinc/stone tint) plus
+   a near-black primary in light mode and near-white primary in dark mode —
+   the OKLCH values from globals.css converted to hex. Brand orange (`--brand`
+   in globals.css) is intentionally NOT used as the widget primary; it is a
+   separate accent reserved for marketing surfaces.
+   Every value below is overridable via the slot system. */
 .knoku-root {
   --bg: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-tertiary: #f3f4f6;
-  --bg-hover: #f3f4f6;
-  --bg-accent: #eef2ff;
-  --bg-accent-hover: #e0e7ff;
-  --text: #1a1a1a;
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
-  --text-placeholder: #9ca3af;
-  --border: #e5e7eb;
-  --border-light: #f3f4f6;
-  --border-input: #d1d5db;
-  --focus-ring: #a5b4fc;
-  --primary: #6366f1;
-  --code-bg: #1e1e2e;
-  --code-text: #cdd6f4;
-  --inline-code-bg: #f3f4f6;
-  --table-header-bg: #f9fafb;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f5f5f5;
+  --bg-hover: #f5f5f5;
+  --bg-accent: #f5f5f5;
+  --bg-accent-hover: #e5e5e5;
+  --text: #0a0a0a;
+  --text-secondary: #525252;
+  --text-muted: #737373;
+  --text-placeholder: #a3a3a3;
+  --border: #e5e5e5;
+  --border-light: #f5f5f5;
+  --border-input: #d4d4d4;
+  --focus-ring: #525252;
+  --primary: #171717;
+  --code-bg: #171717;
+  --code-text: #e5e5e5;
+  --inline-code-bg: #f5f5f5;
+  --table-header-bg: #fafafa;
   --success: #10b981;
   --error: #ef4444;
-  --shadow: rgba(0,0,0,0.04);
+  --shadow: rgba(0, 0, 0, 0.06);
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px; line-height: 1.6; color: var(--text);
@@ -31,28 +38,28 @@
 }
 
 .knoku-root.knoku-dark {
-  --bg: #1a1a2e;
-  --bg-secondary: #16162a;
-  --bg-tertiary: #252540;
-  --bg-hover: #2a2a45;
-  --bg-accent: #1e1b4b;
-  --bg-accent-hover: #2e2860;
-  --text: #e2e8f0;
-  --text-secondary: #a0aec0;
-  --text-muted: #718096;
-  --text-placeholder: #4a5568;
-  --border: #2d2d4a;
-  --border-light: #252540;
-  --border-input: #3d3d5c;
-  --focus-ring: #818cf8;
-  --primary: #818cf8;
-  --code-bg: #0d0d1a;
-  --code-text: #cdd6f4;
-  --inline-code-bg: #252540;
-  --table-header-bg: #1e1e35;
+  --bg: #0a0a0a;
+  --bg-secondary: #171717;
+  --bg-tertiary: #262626;
+  --bg-hover: #1f1f1f;
+  --bg-accent: #262626;
+  --bg-accent-hover: #404040;
+  --text: #e5e5e5;
+  --text-secondary: #d4d4d4;
+  --text-muted: #a3a3a3;
+  --text-placeholder: #737373;
+  --border: #262626;
+  --border-light: #1f1f1f;
+  --border-input: #404040;
+  --focus-ring: #a3a3a3;
+  --primary: #d4d4d4;
+  --code-bg: #0a0a0a;
+  --code-text: #e5e5e5;
+  --inline-code-bg: #171717;
+  --table-header-bg: #171717;
   --success: #34d399;
   --error: #f87171;
-  --shadow: rgba(0,0,0,0.3);
+  --shadow: rgba(0, 0, 0, 0.4);
 }
 
 /* ===== Bottom Bar ===== */
@@ -70,51 +77,60 @@
 }
 .knoku-bar-inner {
   display: flex; align-items: center;
-  min-width: 210px; max-width: 310px; height: 58px;
-  border: 1px solid color-mix(in srgb, var(--knoku-primary-accent) 24%, var(--border-input));
-  border-radius: 999px;
-  padding: 0 8px 0 10px;
-  background: color-mix(in srgb, var(--bg) 97%, transparent);
-  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.14), 0 2px 8px var(--shadow);
-  backdrop-filter: blur(14px);
-  transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
+  min-width: 200px; max-width: 320px; height: 62px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 10px 10px 12px;
+  background-color: var(--bg);
+  box-shadow: 0 4px 14px var(--shadow), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s;
   width: 100%;
 }
 .knoku-bar-trigger:hover .knoku-bar-inner,
 .knoku-bar-trigger:focus-visible .knoku-bar-inner {
-  border-color: color-mix(in srgb, var(--knoku-primary-accent) 52%, var(--border-input));
-  transform: translateY(-2px);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18), 0 3px 10px var(--shadow);
+  border-color: color-mix(in srgb, var(--knoku-primary-accent) 55%, var(--border));
+  box-shadow: 0 6px 20px var(--shadow), 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 .knoku-bar-mark {
-  width: 36px; height: 36px; border-radius: 999px;
+  width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  color: var(--knoku-primary-accent);
-  background: color-mix(in srgb, var(--knoku-primary-accent) 11%, transparent);
+  color: var(--text-secondary);
+  background-color: transparent;
+  transition: color 0.15s;
 }
+.knoku-bar-mark svg { width: 20px; height: 20px; }
+.knoku-bar-trigger:hover .knoku-bar-mark { color: var(--knoku-primary-accent); }
 .knoku-bar-copy {
   min-width: 0; flex: 1; display: flex; flex-direction: column;
-  justify-content: center; gap: 1px; padding: 0 12px 0 10px;
+  justify-content: center; gap: 3px; padding: 0 8px 0 10px;
 }
 .knoku-bar-input {
   border: none; outline: none;
-  font-size: 14px; font-weight: 700; letter-spacing: 0; font-family: inherit;
+  font-size: 14px; font-weight: 600; letter-spacing: 0; font-family: inherit;
   background: transparent; padding: 0;
   color: var(--text); line-height: 1.2;
   user-select: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .knoku-bar-subtitle {
-  color: var(--text-muted); font-size: 11px; font-weight: 500; line-height: 1.2;
+  color: var(--text-secondary); font-size: 12px; font-weight: 600; line-height: 1.2;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .knoku-bar-send {
-  width: 40px; height: 40px; border-radius: 999px; border: none;
-  background: var(--knoku-primary-accent);
-  color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background-color: transparent;
+  color: var(--text-secondary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; pointer-events: none;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--knoku-primary-accent) 26%, transparent);
+  box-shadow: none;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+}
+.knoku-bar-send svg { width: 14px; height: 14px; }
+.knoku-bar-trigger:hover .knoku-bar-send {
+  border-color: color-mix(in srgb, var(--knoku-primary-accent) 55%, var(--border));
+  color: var(--knoku-primary-accent);
 }
 .knoku-bar-send:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 640px) {
@@ -123,9 +139,11 @@
     max-width: calc(100vw - 24px);
   }
   .knoku-bar-bottom-left { left: 12px; right: auto; }
-  .knoku-bar-inner { min-width: 190px; height: 54px; }
-  .knoku-bar-mark { width: 32px; height: 32px; }
-  .knoku-bar-send { width: 36px; height: 36px; }
+  .knoku-bar-inner { min-width: 210px; height: 52px; }
+  .knoku-bar-mark { width: 22px; height: 22px; }
+  .knoku-bar-mark svg { width: 16px; height: 16px; }
+  .knoku-bar-send { width: 22px; height: 22px; }
+  .knoku-bar-send svg { width: 12px; height: 12px; }
 }
 
 /* ===== Side Panel ===== */
@@ -169,19 +187,31 @@
   text-align: center; color: var(--text-placeholder); padding: 72px 20px 20px; font-size: 16px;
 }
 .knoku-suggestions {
-  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px 10px 8px;
+  flex-shrink: 0;
+  align-items: stretch;
 }
 .knoku-suggestion-chip {
-  background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text);
-  padding: 8px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  display: flex; align-items: center; gap: 12px;
+  background: transparent; border: none; color: var(--text);
+  padding: 6px 12px; border-radius: 8px; font-size: 14px;
+  text-align: left; cursor: pointer; font-family: inherit;
+  transition: background 0.1s;
 }
 .knoku-suggestion-chip:hover {
-  background: var(--bg-secondary); border-color: var(--text-muted);
+  background: var(--bg-hover);
+}
+.knoku-suggestion-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 .knoku-disclaimer {
-  max-width: 320px; margin: 18px auto 0;
-  font-size: 13px; line-height: 1.45; color: var(--text-muted); opacity: 0.9;
+  padding: 4px 22px 10px;
+  font-size: 12px; line-height: 1.4;
+  color: var(--text-muted); opacity: 0.85;
+  flex-shrink: 0;
 }
 .knoku-msg-user { display: flex; justify-content: flex-end; }
 .knoku-msg-user-bubble {
@@ -321,20 +351,20 @@
 
 /* ===== Panel Input ===== */
 .knoku-input-area {
-  padding: 12px 14px 10px; border-top: 1px solid var(--border-light); flex-shrink: 0;
+  padding: 12px 14px 14px; border-top: 1px solid var(--border-light); flex-shrink: 0;
 }
 .knoku-input-box {
   display: flex; flex-direction: column;
-  min-height: 74px;
+  min-height: 104px;
   border: 1.5px solid var(--border-input); border-radius: 16px;
-  padding: 10px 12px 8px; background: var(--bg);
+  padding: 12px 14px 10px; background: var(--bg);
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 .knoku-input-box.knoku-drag-over { border-color: var(--knoku-primary-accent); background: var(--bg-accent); }
 .knoku-textarea {
   width: 100%; border: none; outline: none; font-size: 14px;
   font-family: inherit; background: transparent; resize: none;
-  min-height: 28px; max-height: 120px; line-height: 1.45;
+  min-height: 48px; max-height: 160px; line-height: 1.5;
   color: var(--text);
   flex: 1;
 }
@@ -427,16 +457,3 @@
   border-color: var(--border);
 }
 .knoku-consent-reject:hover { background: var(--bg-hover); }
-
-/* ===== Side Panel ===== */
-.knoku-panel {
-  position: fixed; top: 0; right: 0; width: 440px; height: 100vh;
-  background: var(--bg); border-left: 1px solid var(--border);
-  display: flex; flex-direction: column; z-index: 99999;
-  animation: knoku-slide-in 0.2s ease-out;
-  transition: background 0.15s;
-}
-@keyframes knoku-slide-in {
-  from { transform: translateX(100%); } to { transform: translateX(0); }
-}
-@media (max-width: 640px) { .knoku-panel { width: 100%; } }

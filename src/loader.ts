@@ -9,7 +9,7 @@
 
 import { initKnokuWidget } from './sdk'
 import { detectBrowserLanguage, isSupportedLanguage } from './i18n'
-import type { ConsentConfig, KnokuWidgetInitOptions } from './types'
+import type { ConsentConfig, KnokuWidgetInitOptions, SuggestedQuestion } from './types'
 import { ALLOWED_CSS_PROPERTIES, ALLOWED_STATES, SLOT_NAMES_BY_LENGTH } from './component-style-spec'
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
@@ -27,8 +27,10 @@ function parseScriptAttributes(script: HTMLScriptElement): Partial<KnokuWidgetIn
   const launcherSubtitle = readString(script, 'launcher-subtitle')
   const launcherAlign = readEnum(script, 'launcher-align', ['bottom-right', 'bottom-left'] as const)
   const launcherHidden = readBoolean(script, 'launcher-hidden')
+  const launcherIcon = readString(script, 'launcher-icon')
+  const layout = readEnum(script, 'layout', ['overlay', 'push'] as const)
   const openSelector = readString(script, 'open-selector')
-  const suggestedQuestions = readCSV(script, 'suggested-questions')
+  const suggestedQuestions = readSuggestedQuestions(script)
   const language = readLanguage(script)
   const consentRequired = readBoolean(script, 'consent-required')
   const consentTitle = readString(script, 'consent-title')
@@ -46,6 +48,8 @@ function parseScriptAttributes(script: HTMLScriptElement): Partial<KnokuWidgetIn
   if (launcherSubtitle) options.launcherSubtitle = launcherSubtitle
   if (launcherAlign) options.launcherAlign = launcherAlign
   if (typeof launcherHidden === 'boolean') options.launcherHidden = launcherHidden
+  if (launcherIcon) options.launcherIcon = launcherIcon
+  if (layout) options.layout = layout
   if (openSelector) options.openSelector = openSelector
   if (suggestedQuestions) options.suggestedQuestions = suggestedQuestions
   if (language) options.language = language
@@ -175,6 +179,32 @@ function readCSV(script: HTMLScriptElement, name: string): string[] | undefined 
   const value = readString(script, name)
   if (!value) return undefined
   return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+/**
+ * Parse `data-suggested-questions` with optional `|icon` per item.
+ * Format: `Question 1,Question 2|icon-name,Question 3|icon-name`. Items
+ * without `|` get the default icon (sparkle). Empty entries are dropped.
+ * For questions containing `,` or `|`, use the npm path with the object form.
+ */
+function readSuggestedQuestions(script: HTMLScriptElement): SuggestedQuestion[] | undefined {
+  const value = readString(script, 'suggested-questions')
+  if (!value) return undefined
+  const items: SuggestedQuestion[] = []
+  for (const raw of value.split(',')) {
+    const trimmed = raw.trim()
+    if (!trimmed) continue
+    const pipeIdx = trimmed.indexOf('|')
+    if (pipeIdx === -1) {
+      items.push(trimmed)
+      continue
+    }
+    const text = trimmed.slice(0, pipeIdx).trim()
+    const icon = trimmed.slice(pipeIdx + 1).trim()
+    if (!text) continue
+    items.push(icon ? { text, icon } : text)
+  }
+  return items.length > 0 ? items : undefined
 }
 
 function readEnum<T extends readonly string[]>(script: HTMLScriptElement, name: string, values: T): T[number] | undefined {

@@ -302,8 +302,14 @@ function ActionButtons({
 function formatCopyText(content: string, sources: NonNullable<MessageType['sources']>): string {
   if (!sources.length) return content
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const sourceLines = sources.map((src) => {
     const label = src.title || src.path
+    const lineSuffix = src.lines ? ` — lines ${src.lines}` : ''
+    if (src.url_path) {
+      const url = src.url_path.startsWith('http') ? src.url_path : `${origin}${src.url_path}`
+      return `- [${label}](${url})${lineSuffix}`
+    }
     const location = src.path ? `${src.path}${src.lines ? `:${src.lines}` : ''}` : ''
     return location ? `- ${label} (${location})` : `- ${label}`
   })
@@ -428,6 +434,7 @@ function renderThinking(text: string): string {
   result = result
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*\*/g, '')
     .replace(/\n/g, '<br/>')
     .replace(/<br\/><pre>/g, '<pre>')
     .replace(/<\/pre><br\/>/g, '</pre>')
@@ -483,5 +490,9 @@ function inl(s: string) {
       return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`
     })
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Strip orphan ** markers left behind when the LLM produces an unmatched
+    // bold marker (e.g. "1. **Analytics → Data" with no closing **). Without
+    // this the literal asterisks leak into the rendered output.
+    .replace(/\*\*/g, '')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
 }

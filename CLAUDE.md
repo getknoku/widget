@@ -75,6 +75,7 @@ Three entry paths into `sdk.ts:initKnokuWidget`.
 | Attribute | Required | Maps to option |
 |---|---|---|
 | `data-project-id` | **yes** — loader logs error and bails if missing | `projectId` |
+| `data-theme` | no | `theme` |
 | `data-primary-color` | no | `primaryColor` shorthand for both light/dark |
 | `data-primary-color-light` | no | `primaryColorLight` |
 | `data-primary-color-dark` | no | `primaryColorDark` |
@@ -87,6 +88,10 @@ Three entry paths into `sdk.ts:initKnokuWidget`.
 | `data-suggested-questions` | no | `suggestedQuestions` CSV |
 | `data-language` | no | `language` |
 | `data-consent-required` | no | `consent.required` |
+| `data-consent-title` | no | `consent.title` |
+| `data-consent-disclaimer` | no | `consent.disclaimer` |
+| `data-consent-accept-text` | no | `consent.acceptText` |
+| `data-consent-reject-text` | no | `consent.rejectText` |
 
 Customer-facing config lives in the host page, not the Knoku dashboard. Use `__KNOKU_CONFIG__` or npm options for values that do not fit cleanly in attributes, such as `componentStyles`, long consent copy, or suggested questions containing commas.
 

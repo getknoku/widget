@@ -53,6 +53,24 @@ export interface Message {
   thinkingDuration?: number
 }
 
+/**
+ * A suggested question shown in the empty state. Either a plain string or
+ * an object with an optional `icon` field.
+ *
+ * `icon` accepts:
+ * - A built-in name from `ICON_NAMES` (e.g. `'rocket'`, `'card'`, `'key'`).
+ * - Raw inner SVG content starting with `<` (npm path only — script-tag
+ *   `data-suggested-questions` cannot carry SVG safely). Sanitized via
+ *   `sanitizeIconSvg`; rejected content falls back to `sparkle`.
+ *
+ * Unknown built-in names also fall back to `sparkle`.
+ */
+export interface SuggestedQuestionConfig {
+  text: string
+  icon?: string
+}
+export type SuggestedQuestion = string | SuggestedQuestionConfig
+
 /** Consent screen copy and required flag. */
 export interface ConsentConfig {
   required: boolean
@@ -77,7 +95,9 @@ export interface WidgetConfig {
   launcherSubtitle: string
   launcherAlign: 'bottom-right' | 'bottom-left'
   launcherHidden: boolean
-  suggestedQuestions: string[]
+  launcherIcon: string
+  layout: 'overlay' | 'push'
+  suggestedQuestions: SuggestedQuestionConfig[]
   brandingRequired: boolean
   language: string
   consent: ConsentConfig
@@ -101,8 +121,17 @@ export interface KnokuWidgetInitOptions {
   launcherSubtitle?: string
   launcherAlign?: 'bottom-right' | 'bottom-left'
   launcherHidden?: boolean
+  /**
+   * Icon shown inside the launcher button's mark slot. Accepts a built-in
+   * name from `ICON_NAMES` (default `'book-open'`) or raw inner SVG content
+   * starting with `<` (npm path only — sanitized via `sanitizeIconSvg`).
+   * Unknown names fall back to the default.
+   */
+  launcherIcon?: string
+  /** `overlay` (default): panel açıldığında sayfa içeriği itilmez, panel üstüne biner. `push`: body'ye sağ kenardan margin verilir, sanki panel sayfaya gömülmüş gibi durur. */
+  layout?: 'overlay' | 'push'
   openSelector?: string
-  suggestedQuestions?: string[]
+  suggestedQuestions?: SuggestedQuestion[]
   language?: string
   consent?: Partial<ConsentConfig>
   componentStyles?: Record<string, Record<string, string>>

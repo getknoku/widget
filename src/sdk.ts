@@ -19,6 +19,8 @@ import type {
   ConsentConfig,
   KnokuWidgetInitOptions,
   KnokuWidgetRuntime,
+  SuggestedQuestion,
+  SuggestedQuestionConfig,
   WidgetConfig,
 } from './types'
 
@@ -56,13 +58,18 @@ export const DEFAULT_CONSENT_CONFIG: ConsentConfig = {
 export const DEFAULT_WIDGET_CONFIG: Omit<WidgetConfig, 'projectId'> = {
   apiUrl: 'https://api.knoku.com',
   theme: 'auto',
-  primaryColorLight: '#6366f1',
-  primaryColorDark: '#818cf8',
-  greeting: 'How can I help?',
+  // Knoku brand defaults (from frontend/src/app/globals.css `--primary`):
+  // light mode `oklch(0.205 0 0)` → near-black; dark mode `oklch(0.88 0 0)` → near-white.
+  // Customers override per-project via `data-primary-color-*`.
+  primaryColorLight: '#171717',
+  primaryColorDark: '#d4d4d4',
+  greeting: '',
   launcherText: 'Need help?',
   launcherSubtitle: 'Ask AI',
   launcherAlign: 'bottom-right',
   launcherHidden: false,
+  launcherIcon: 'book-open',
+  layout: 'overlay',
   suggestedQuestions: [],
   brandingRequired: false,
   // Overridden by detectBrowserLanguage() unless the caller sets `language` explicitly.
@@ -111,6 +118,29 @@ function getDefaultConsentConfig(language: string): ConsentConfig {
   }
 }
 
+function normalizeSuggestion(s: SuggestedQuestion): SuggestedQuestionConfig | null {
+  if (typeof s === 'string') {
+    const text = s.trim()
+    return text ? { text } : null
+  }
+  if (s && typeof s === 'object' && typeof s.text === 'string') {
+    const text = s.text.trim()
+    if (!text) return null
+    return s.icon ? { text, icon: s.icon } : { text }
+  }
+  return null
+}
+
+function normalizeSuggestions(input?: SuggestedQuestion[]): SuggestedQuestionConfig[] {
+  if (!input) return []
+  const out: SuggestedQuestionConfig[] = []
+  for (const item of input) {
+    const n = normalizeSuggestion(item)
+    if (n) out.push(n)
+  }
+  return out
+}
+
 function mergeComponentStyles(local?: Record<string, Record<string, string>>): Record<string, Record<string, string>> {
   const out: Record<string, Record<string, string>> = {}
   const assign = (source: unknown) => {
@@ -147,7 +177,9 @@ export function createWidgetConfig(options: KnokuWidgetInitOptions): WidgetConfi
     launcherSubtitle: options.launcherSubtitle || DEFAULT_WIDGET_CONFIG.launcherSubtitle,
     launcherAlign: options.launcherAlign || DEFAULT_WIDGET_CONFIG.launcherAlign,
     launcherHidden: options.launcherHidden ?? DEFAULT_WIDGET_CONFIG.launcherHidden,
-    suggestedQuestions: options.suggestedQuestions || DEFAULT_WIDGET_CONFIG.suggestedQuestions,
+    launcherIcon: options.launcherIcon || DEFAULT_WIDGET_CONFIG.launcherIcon,
+    layout: options.layout || DEFAULT_WIDGET_CONFIG.layout,
+    suggestedQuestions: normalizeSuggestions(options.suggestedQuestions),
     brandingRequired: DEFAULT_WIDGET_CONFIG.brandingRequired,
     language,
     consent: mergeConsent(options.consent, defaultConsent),
@@ -210,6 +242,10 @@ export async function initKnokuWidget(options: KnokuWidgetInitOptions): Promise<
   document.body.appendChild(host)
 
   const shadow = host.attachShadow({ mode: 'open' })
+  const blockKeys = (e: Event) => e.stopPropagation()
+  shadow.addEventListener('keydown', blockKeys)
+  shadow.addEventListener('keyup', blockKeys)
+  shadow.addEventListener('keypress', blockKeys)
   const mounted = mountWithCleanup(shadow, config)
   activeHost = host
   activeDestroy = mounted.destroy
@@ -228,11 +264,18 @@ export function mountKnokuWidget(container: ShadowRoot, config: WidgetConfig): K
 
 /**
  * Wire up `data-open-selector` so any matching element opens the panel on
- * click. Binds immediately for elements already in the DOM and once more on
- * `DOMContentLoaded` to catch elements declared after the widget script.
+ * click. Binds immediately, on `DOMContentLoaded`, and observes the DOM for
+ * matches added later (SPA navbars, async-rendered triggers, etc.).
  */
 function bindOpenSelector(selector?: string): (() => void) | null {
   if (!selector) return null
+
+  try {
+    document.querySelector(selector)
+  } catch {
+    console.warn(`Knoku: invalid value for data-open-selector "${selector}", ignoring`)
+    return null
+  }
 
   const cleanups: Array<() => void> = []
   const bound = new WeakSet<Element>()
@@ -241,22 +284,14 @@ function bindOpenSelector(selector?: string): (() => void) | null {
     window.dispatchEvent(new CustomEvent('knoku:open'))
   }
 
-  const bind = () => {
-    let nodes: NodeListOf<Element>
-    try {
-      nodes = document.querySelectorAll(selector)
-    } catch {
-      console.warn(`Knoku: invalid value for data-open-selector "${selector}", ignoring`)
-      return
-    }
-
-    nodes.forEach((node) => {
-      if (bound.has(node)) return
-      bound.add(node)
-      node.addEventListener('click', handler)
-      cleanups.push(() => node.removeEventListener('click', handler))
-    })
+  const bindNode = (node: Element) => {
+    if (bound.has(node)) return
+    bound.add(node)
+    node.addEventListener('click', handler)
+    cleanups.push(() => node.removeEventListener('click', handler))
   }
+
+  const bind = () => document.querySelectorAll(selector).forEach(bindNode)
 
   bind()
 
@@ -264,6 +299,18 @@ function bindOpenSelector(selector?: string): (() => void) | null {
     document.addEventListener('DOMContentLoaded', bind, { once: true })
     cleanups.push(() => document.removeEventListener('DOMContentLoaded', bind))
   }
+
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of Array.from(record.addedNodes)) {
+        if (!(node instanceof Element)) continue
+        if (node.matches(selector)) bindNode(node)
+        node.querySelectorAll(selector).forEach(bindNode)
+      }
+    }
+  })
+  observer.observe(document.documentElement, { childList: true, subtree: true })
+  cleanups.push(() => observer.disconnect())
 
   return () => {
     for (const cleanup of cleanups.splice(0)) cleanup()
