@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-10
+
+### Added
+- `WidgetConfig.primaryDomain` consumed from the `/api/v1/config/{projectId}` response (`primary_domain` field). When set, source citation chips and inline markdown links with root-relative hrefs (`/foo/bar`) are prefixed with this host instead of `window.location.origin`. Lets the same project be embedded on a sibling host (e.g. apex marketing site) without breaking links to docs on a subdomain. Empty value preserves the previous behavior.
+
 ## [0.2.0] - 2026-05-10
 
 ### Added
@@ -50,7 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release.
 
-[Unreleased]: https://github.com/getknoku/widget/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/getknoku/widget/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/getknoku/widget/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/getknoku/widget/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/getknoku/widget/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/getknoku/widget/releases/tag/v0.1.0

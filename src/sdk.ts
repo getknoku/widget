@@ -72,6 +72,9 @@ export const DEFAULT_WIDGET_CONFIG: Omit<WidgetConfig, 'projectId'> = {
   layout: 'overlay',
   suggestedQuestions: [],
   brandingRequired: false,
+  // Set by the backend config response (project.primary_domain). Empty string
+  // means "fall back to window.location.origin" — see WidgetConfig docstring.
+  primaryDomain: '',
   // Overridden by detectBrowserLanguage() unless the caller sets `language` explicitly.
   language: 'en',
   consent: DEFAULT_CONSENT_CONFIG,
@@ -181,6 +184,8 @@ export function createWidgetConfig(options: KnokuWidgetInitOptions): WidgetConfi
     layout: options.layout || DEFAULT_WIDGET_CONFIG.layout,
     suggestedQuestions: normalizeSuggestions(options.suggestedQuestions),
     brandingRequired: DEFAULT_WIDGET_CONFIG.brandingRequired,
+    // Filled in by fetchWidgetConfig from the remote response; not caller-settable.
+    primaryDomain: DEFAULT_WIDGET_CONFIG.primaryDomain,
     language,
     consent: mergeConsent(options.consent, defaultConsent),
     componentStyles: mergeComponentStyles(options.componentStyles),
@@ -204,6 +209,7 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
       active?: boolean
       branding_required?: boolean
       disabled_reason?: string | null
+      primary_domain?: string
     }
     if (remoteConfig && remoteConfig.active === false) {
       if (remoteConfig.disabled_reason) {
@@ -214,10 +220,14 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
     const remoteBrandingRequired = typeof remoteConfig?.branding_required === 'boolean'
       ? remoteConfig.branding_required
       : undefined
+    const remotePrimaryDomain = typeof remoteConfig?.primary_domain === 'string'
+      ? remoteConfig.primary_domain
+      : ''
 
     return {
       ...localConfig,
       brandingRequired: remoteBrandingRequired ?? DEFAULT_WIDGET_CONFIG.brandingRequired,
+      primaryDomain: remotePrimaryDomain,
     }
   } catch {
     return null

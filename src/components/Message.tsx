@@ -24,6 +24,12 @@ interface Props {
   t: UIStrings
   apiUrl: string
   projectId: string
+  /**
+   * Canonical host for resolving relative `url_path` values from the
+   * backend. Empty string falls back to `window.location.origin` — only
+   * correct when widget is mounted on the same host as the docs.
+   */
+  primaryDomain: string
   sessionId: string | null
   messageIndex: number
   isLastAssistant?: boolean
@@ -36,6 +42,7 @@ export function Message({
   t,
   apiUrl,
   projectId,
+  primaryDomain,
   sessionId,
   messageIndex,
   isLastAssistant,
@@ -99,16 +106,14 @@ export function Message({
 
       {/* Answer */}
       {cleanContent && (
-        <div class="knoku-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(cleanContent) }} />
+        <div class="knoku-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(cleanContent, primaryDomain) }} />
       )}
 
       {/* Source chips */}
       {uniqueSources.length > 0 && (
         <div class="knoku-sources">
           {uniqueSources.map((src, i) => {
-            const href = src.url_path
-              ? src.url_path.startsWith('/') ? src.url_path : `/${src.url_path}`
-              : `/${src.path.replace(/\.mdx?$/, '').replace(/\/index$/, '')}`
+            const href = resolveSourceHref(src.url_path, src.path, primaryDomain)
             return (
               <a key={i} class="knoku-source-chip" href={href} target="_blank" rel="noopener">
                 {src.title || src.path}
@@ -126,6 +131,7 @@ export function Message({
           sources={uniqueSources}
           apiUrl={apiUrl}
           projectId={projectId}
+          primaryDomain={primaryDomain}
           sessionId={sessionId}
           messageIndex={messageIndex}
           showRegenerate={!!isLastAssistant && !!canRegenerate}
@@ -219,6 +225,7 @@ function ActionButtons({
   sources,
   apiUrl,
   projectId,
+  primaryDomain,
   sessionId,
   messageIndex,
   showRegenerate,
@@ -229,6 +236,7 @@ function ActionButtons({
   sources: NonNullable<MessageType['sources']>
   apiUrl: string
   projectId: string
+  primaryDomain: string
   sessionId: string | null
   messageIndex: number
   showRegenerate?: boolean
@@ -238,7 +246,7 @@ function ActionButtons({
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(formatCopyText(content, sources))
+    navigator.clipboard.writeText(formatCopyText(content, sources, primaryDomain))
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
@@ -299,15 +307,15 @@ function ActionButtons({
   )
 }
 
-function formatCopyText(content: string, sources: NonNullable<MessageType['sources']>): string {
+function formatCopyText(content: string, sources: NonNullable<MessageType['sources']>, primaryDomain: string): string {
   if (!sources.length) return content
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const base = sourceLinkBase(primaryDomain)
   const sourceLines = sources.map((src) => {
     const label = src.title || src.path
     const lineSuffix = src.lines ? ` — lines ${src.lines}` : ''
     if (src.url_path) {
-      const url = src.url_path.startsWith('http') ? src.url_path : `${origin}${src.url_path}`
+      const url = src.url_path.startsWith('http') ? src.url_path : `${base}${src.url_path}`
       return `- [${label}](${url})${lineSuffix}`
     }
     const location = src.path ? `${src.path}${src.lines ? `:${src.lines}` : ''}` : ''
@@ -318,6 +326,36 @@ function formatCopyText(content: string, sources: NonNullable<MessageType['sourc
 }
 
 /**
+ * Pick the canonical host that relative source paths should resolve to:
+ * the project's `primary_domain` if set in the dashboard, otherwise the
+ * current page's origin (legacy fallback for single-host installs).
+ * Trailing slash trimmed so callers can safely concatenate `${base}${path}`.
+ */
+function sourceLinkBase(primaryDomain: string): string {
+  const fromConfig = (primaryDomain || '').replace(/\/+$/, '')
+  if (fromConfig) return fromConfig
+  if (typeof window === 'undefined') return ''
+  return window.location.origin
+}
+
+/**
+ * Resolve the click target for a source-citation chip. Prefers the backend's
+ * `url_path`; if absolute, used verbatim; if relative, prefixed with the
+ * canonical host. Falls back to the doc path turned into a slug when the
+ * backend never resolved a public URL for this doc.
+ */
+function resolveSourceHref(urlPath: string | undefined, path: string, primaryDomain: string): string {
+  const base = sourceLinkBase(primaryDomain)
+  if (urlPath) {
+    if (/^https?:/i.test(urlPath)) return urlPath
+    const rooted = urlPath.startsWith('/') ? urlPath : `/${urlPath}`
+    return `${base}${rooted}`
+  }
+  const slug = `/${path.replace(/\.mdx?$/, '').replace(/\/index$/, '')}`
+  return base ? `${base}${slug}` : slug
+}
+
+/**
  * Convert the assistant's markdown answer into HTML.
  *
  * Handles fenced code blocks, headings (h1–h4), GFM-style tables, ordered
@@ -325,8 +363,9 @@ function formatCopyText(content: string, sources: NonNullable<MessageType['sourc
  * grammar is intentionally narrow — only what the docs agent emits — to
  * keep the bundle small.
  */
-function renderMarkdown(text: string): string {
+function renderMarkdown(text: string, primaryDomain: string): string {
   if (!text) return ''
+  const inlBound = (s: string) => inl(s, primaryDomain)
   const lines = text.split('\n')
   const html: string[] = []
   let i = 0
@@ -352,7 +391,7 @@ function renderMarkdown(text: string): string {
 
     if (/^#{1,4}\s+/.test(trimmed)) {
       const lvl = Math.min((trimmed.match(/^(#+)/)?.[1].length || 1) + 1, 4)
-      html.push(`<h${lvl}>${inl(trimmed.replace(/^#+\s*/, ''))}</h${lvl}>`)
+      html.push(`<h${lvl}>${inlBound(trimmed.replace(/^#+\s*/, ''))}</h${lvl}>`)
       i++
       continue
     }
@@ -374,11 +413,11 @@ function renderMarkdown(text: string): string {
       }
       const hdrs = parseRow(headerLine)
       const cols = hdrs.length
-      let tbl = '<table><thead><tr>' + hdrs.map(c => `<th>${inl(c) || '&nbsp;'}</th>`).join('') + '</tr></thead><tbody>'
+      let tbl = '<table><thead><tr>' + hdrs.map(c => `<th>${inlBound(c) || '&nbsp;'}</th>`).join('') + '</tr></thead><tbody>'
       for (const row of bodyLines) {
         const cells = parseRow(row)
         while (cells.length < cols) cells.push('')
-        tbl += '<tr>' + cells.slice(0, cols).map(c => `<td>${inl(c) || '&nbsp;'}</td>`).join('') + '</tr>'
+        tbl += '<tr>' + cells.slice(0, cols).map(c => `<td>${inlBound(c) || '&nbsp;'}</td>`).join('') + '</tr>'
       }
       html.push(tbl + '</tbody></table>')
       continue
@@ -390,7 +429,7 @@ function renderMarkdown(text: string): string {
         items.push(lines[i].trim().replace(/^[-*]\s+/, ''))
         i++
       }
-      html.push('<ul>' + items.map(item => `<li>${inl(item)}</li>`).join('') + '</ul>')
+      html.push('<ul>' + items.map(item => `<li>${inlBound(item)}</li>`).join('') + '</ul>')
       continue
     }
 
@@ -400,7 +439,7 @@ function renderMarkdown(text: string): string {
         items.push(lines[i].trim().replace(/^\d+[.)]\s+/, ''))
         i++
       }
-      html.push('<ol>' + items.map(item => `<li>${inl(item)}</li>`).join('') + '</ol>')
+      html.push('<ol>' + items.map(item => `<li>${inlBound(item)}</li>`).join('') + '</ol>')
       continue
     }
 
@@ -416,7 +455,7 @@ function renderMarkdown(text: string): string {
       pLines.push(next)
       i++
     }
-    html.push(`<p>${pLines.map(l => inl(l)).join('<br/>')}</p>`)
+    html.push(`<p>${pLines.map(l => inlBound(l)).join('<br/>')}</p>`)
   }
 
   return html.join('')
@@ -481,11 +520,16 @@ function sanitizeHref(raw: string): string | null {
   return null
 }
 
-function inl(s: string) {
+function inl(s: string, primaryDomain: string) {
   return esc(s)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label: string, href: string) => {
-      const safeHref = sanitizeHref(href)
+      // Relative paths from the LLM (`/cli/push`) must resolve against the
+      // docs host, not whatever site the widget is mounted on. Prefix with
+      // the project's primary_domain when one is set; otherwise let the
+      // browser fall back to the current page's origin (legacy behavior).
+      const resolvedHref = resolveLinkHref(href, primaryDomain)
+      const safeHref = sanitizeHref(resolvedHref)
       if (!safeHref) return label
       return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`
     })
@@ -495,4 +539,17 @@ function inl(s: string) {
     // this the literal asterisks leak into the rendered output.
     .replace(/\*\*/g, '')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
+}
+
+/**
+ * Prepend `primaryDomain` to root-relative hrefs (`/foo/bar`). Absolute URLs,
+ * fragment links (`#anchor`), query-only links (`?q=`), and parent/sibling
+ * paths (`./`, `../`) are left alone — those are not document references.
+ */
+function resolveLinkHref(href: string, primaryDomain: string): string {
+  if (!primaryDomain) return href
+  if (!href.startsWith('/')) return href
+  if (href.startsWith('//')) return href // protocol-relative, sanitizer rejects anyway
+  const base = primaryDomain.replace(/\/+$/, '')
+  return `${base}${href}`
 }

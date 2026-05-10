@@ -114,6 +114,7 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
               t={t}
               apiUrl={config.apiUrl}
               projectId={config.projectId}
+              primaryDomain={config.primaryDomain}
               sessionId={sessionId}
               messageIndex={i}
               isLastAssistant={isLastAssistant}

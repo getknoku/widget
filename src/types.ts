@@ -99,6 +99,14 @@ export interface WidgetConfig {
   layout: 'overlay' | 'push'
   suggestedQuestions: SuggestedQuestionConfig[]
   brandingRequired: boolean
+  /**
+   * Canonical host used to prefix relative `url_path` values when rendering
+   * source links. Comes from the project's selected `allowed_domains` entry
+   * (set in the dashboard). Empty string means the widget falls back to
+   * `window.location.origin` — fine when widget runs on the same host as
+   * the docs, wrong when it runs on a sibling host (apex vs subdomain).
+   */
+  primaryDomain: string
   language: string
   consent: ConsentConfig
   componentStyles: Record<string, Record<string, string>>
