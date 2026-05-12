@@ -90,6 +90,9 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
           <span>{t.assistant}</span>
         </div>
         <div class="knoku-header-actions">
+          {config.mcpEnabled && config.mcpUrl && (
+            <McpButton mcpUrl={config.mcpUrl} />
+          )}
           <button class="knoku-header-btn" onClick={onClose} title={t.close}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -217,5 +220,143 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
         )}
       </form>
     </div>
+  )
+}
+
+// --- MCP popover ---
+//
+// Surfaces the "Use MCP" entry point only when the project has it enabled.
+// The button stays in the chat header so it shows up next to the close
+// button without crowding the message area. Popover is positioned absolutely
+// inside the panel; closing on outside-click is handled with a transparent
+// backdrop layer that captures the next pointer event.
+
+interface McpButtonProps {
+  mcpUrl: string
+}
+
+function McpButton({ mcpUrl }: McpButtonProps) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const slug = (() => {
+    try {
+      const host = new URL(mcpUrl).hostname
+      return host.split('.')[0]
+    } catch {
+      return 'docs'
+    }
+  })()
+  const serverName = `knoku-${slug}`
+
+  const cursorConfig = btoa(JSON.stringify({ url: mcpUrl }))
+  const cursorHref = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(cursorConfig)}`
+  const vscodeHref = `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: serverName, url: mcpUrl }))}`
+  const claudeCommand = `claude mcp add --transport http ${serverName} ${mcpUrl}`
+
+  const copy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(label)
+      setTimeout(() => setCopied((current) => (current === label ? null : current)), 1500)
+    } catch {
+      // Some browsers block clipboard inside an iframe / non-secure context.
+      // Fail silently — the user can manually copy from the visible URL.
+    }
+  }
+
+  return (
+    <div class="knoku-mcp-wrap">
+      <button
+        class="knoku-mcp-trigger"
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        title="Use MCP">
+        <span>Use MCP</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style={open ? 'transform: rotate(180deg)' : ''}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div class="knoku-mcp-backdrop" onClick={() => setOpen(false)} />
+          <div class="knoku-mcp-popover" role="dialog" aria-label="Connect to AI tools">
+            <div class="knoku-mcp-head">
+              <p class="knoku-mcp-title">Connect to AI Tools</p>
+              <p class="knoku-mcp-sub">Access this documentation via MCP</p>
+            </div>
+            <a class="knoku-mcp-row" href={cursorHref} target="_blank" rel="noopener noreferrer">
+              <span class="knoku-mcp-row-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2"/>
+                  <polyline points="3 7 12 12 21 7"/>
+                  <line x1="12" y1="12" x2="12" y2="22"/>
+                </svg>
+              </span>
+              <span class="knoku-mcp-row-body">
+                <span class="knoku-mcp-row-title">Add to Cursor</span>
+                <span class="knoku-mcp-row-meta">One-click install</span>
+              </span>
+              <ExternalIcon />
+            </a>
+            <a class="knoku-mcp-row" href={vscodeHref} target="_blank" rel="noopener noreferrer">
+              <span class="knoku-mcp-row-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="16 18 22 12 16 6"/>
+                  <polyline points="8 6 2 12 8 18"/>
+                </svg>
+              </span>
+              <span class="knoku-mcp-row-body">
+                <span class="knoku-mcp-row-title">Add to VS Code</span>
+                <span class="knoku-mcp-row-meta">One-click install</span>
+              </span>
+              <ExternalIcon />
+            </a>
+            <button
+              class="knoku-mcp-row knoku-mcp-row-btn"
+              type="button"
+              onClick={() => copy(claudeCommand, 'claude')}>
+              <span class="knoku-mcp-row-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="4 17 10 11 4 5"/>
+                  <line x1="12" y1="19" x2="20" y2="19"/>
+                </svg>
+              </span>
+              <span class="knoku-mcp-row-body">
+                <span class="knoku-mcp-row-title">Add to Claude Code</span>
+                <span class="knoku-mcp-row-meta">{copied === 'claude' ? 'Command copied' : 'Copy CLI command'}</span>
+              </span>
+            </button>
+            <button
+              class="knoku-mcp-row knoku-mcp-row-btn"
+              type="button"
+              onClick={() => copy(mcpUrl, 'url')}>
+              <span class="knoku-mcp-row-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </span>
+              <span class="knoku-mcp-row-body">
+                <span class="knoku-mcp-row-title">Copy MCP URL</span>
+                <span class="knoku-mcp-row-meta">{copied === 'url' ? 'URL copied' : 'For Claude Desktop, ChatGPT, etc.'}</span>
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ExternalIcon() {
+  return (
+    <svg class="knoku-mcp-row-external" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+      <polyline points="15 3 21 3 21 9"/>
+      <line x1="10" y1="14" x2="21" y2="3"/>
+    </svg>
   )
 }

@@ -107,6 +107,14 @@ export interface WidgetConfig {
    * the docs, wrong when it runs on a sibling host (apex vs subdomain).
    */
   primaryDomain: string
+  /**
+   * Plan + project setting controlled. When `true`, the widget exposes a
+   * "Use MCP" popover so end-users can wire the docs into Claude Desktop /
+   * Cursor / VS Code via Model Context Protocol. `mcpUrl` is the absolute
+   * endpoint to connect to ({slug}.mcp.knoku.com/mcp).
+   */
+  mcpEnabled: boolean
+  mcpUrl: string
   language: string
   consent: ConsentConfig
   componentStyles: Record<string, Record<string, string>>

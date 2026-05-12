@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-05-12
+
+### Added
+- `WidgetConfig.mcpEnabled` + `mcpUrl` read from `/api/v1/config/{projectId}` (`mcp_enabled` / `mcp_url` fields). When `mcpEnabled` is true, the chat header renders a "Use MCP" button with a popover: Cursor install deeplink, VS Code install deeplink, Claude CLI command copy, MCP URL copy.
+
 ## [0.2.2] - 2026-05-10
 
 ### Fixed
@@ -60,7 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release.
 
-[Unreleased]: https://github.com/getknoku/widget/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/getknoku/widget/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/getknoku/widget/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/getknoku/widget/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/getknoku/widget/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/getknoku/widget/compare/v0.1.1...v0.2.0

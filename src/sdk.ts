@@ -75,6 +75,10 @@ export const DEFAULT_WIDGET_CONFIG: Omit<WidgetConfig, 'projectId'> = {
   // Set by the backend config response (project.primary_domain). Empty string
   // means "fall back to window.location.origin" — see WidgetConfig docstring.
   primaryDomain: '',
+  // Backend-controlled: only true when the project owner enabled MCP AND the
+  // org's plan covers it. Widget reads but never sets.
+  mcpEnabled: false,
+  mcpUrl: '',
   // Overridden by detectBrowserLanguage() unless the caller sets `language` explicitly.
   language: 'en',
   consent: DEFAULT_CONSENT_CONFIG,
@@ -186,6 +190,8 @@ export function createWidgetConfig(options: KnokuWidgetInitOptions): WidgetConfi
     brandingRequired: DEFAULT_WIDGET_CONFIG.brandingRequired,
     // Filled in by fetchWidgetConfig from the remote response; not caller-settable.
     primaryDomain: DEFAULT_WIDGET_CONFIG.primaryDomain,
+    mcpEnabled: DEFAULT_WIDGET_CONFIG.mcpEnabled,
+    mcpUrl: DEFAULT_WIDGET_CONFIG.mcpUrl,
     language,
     consent: mergeConsent(options.consent, defaultConsent),
     componentStyles: mergeComponentStyles(options.componentStyles),
@@ -210,6 +216,8 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
       branding_required?: boolean
       disabled_reason?: string | null
       primary_domain?: string
+      mcp_enabled?: boolean
+      mcp_url?: string
     }
     if (remoteConfig && remoteConfig.active === false) {
       if (remoteConfig.disabled_reason) {
@@ -223,11 +231,15 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
     const remotePrimaryDomain = typeof remoteConfig?.primary_domain === 'string'
       ? remoteConfig.primary_domain
       : ''
+    const remoteMCPEnabled = remoteConfig?.mcp_enabled === true
+    const remoteMCPUrl = typeof remoteConfig?.mcp_url === 'string' ? remoteConfig.mcp_url : ''
 
     return {
       ...localConfig,
       brandingRequired: remoteBrandingRequired ?? DEFAULT_WIDGET_CONFIG.brandingRequired,
       primaryDomain: remotePrimaryDomain,
+      mcpEnabled: remoteMCPEnabled && remoteMCPUrl !== '',
+      mcpUrl: remoteMCPUrl,
     }
   } catch {
     return null
