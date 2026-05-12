@@ -239,15 +239,13 @@ function McpButton({ mcpUrl }: McpButtonProps) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
 
-  const slug = (() => {
+  const serverName = (() => {
     try {
-      const host = new URL(mcpUrl).hostname
-      return host.split('.')[0]
+      return new URL(mcpUrl).hostname.split('.')[0]
     } catch {
-      return 'docs'
+      return 'knoku-docs'
     }
   })()
-  const serverName = `knoku-${slug}`
 
   const cursorConfig = btoa(JSON.stringify({ url: mcpUrl }))
   const cursorHref = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(cursorConfig)}`
