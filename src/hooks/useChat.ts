@@ -13,9 +13,24 @@
  */
 
 import { useState, useCallback, useRef } from 'preact/hooks'
-import type { Message, SelectedDocument, SSEEvent, SourceRef, StatusStep, WidgetConfig } from '../types'
+import type { Message, SelectedDocument, SSEEvent, SourceRef, StatusStep, TimelineItem, WidgetConfig } from '../types'
 import { getOrCreateWebID } from '../cookie'
 import { getIdentity } from '../identity'
+import { getDictionary } from '../i18n'
+
+// Pull the search query out of a tool_args payload like
+// `{"query":"X","top_k":5}`. Returns '' for malformed / non-string queries
+// so callers can fall back to a generic "Searching..." label.
+function extractSearchQuery(toolArgs?: string): string {
+  if (!toolArgs) return ''
+  try {
+    const args = JSON.parse(toolArgs)
+    if (args && typeof args.query === 'string') return args.query.trim()
+  } catch {
+    /* partial / non-JSON — fall through */
+  }
+  return ''
+}
 
 export function useChat(config: WidgetConfig) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -40,10 +55,12 @@ export function useChat(config: WidgetConfig) {
   // limiting / counting against the user's quota.
   const sendMessage = useCallback(async (question: string, regenCount: number = 0, imageBase64?: string) => {
     const userMsg: Message = { role: 'user', content: question, image: imageBase64 }
-    const assistantMsg: Message = { role: 'assistant', content: '', steps: [], isStreaming: true, regenerateCount: regenCount }
+    const assistantMsg: Message = { role: 'assistant', content: '', steps: [], timeline: [], isStreaming: true, regenerateCount: regenCount }
 
     setMessages(prev => [...prev, userMsg, assistantMsg])
     setIsLoading(true)
+
+    const strings = getDictionary(config.language)
 
     window.dispatchEvent(new CustomEvent('knoku:message', { detail: { question } }))
 
@@ -52,9 +69,20 @@ export function useChat(config: WidgetConfig) {
 
     let text = ''
     let sources: SourceRef[] = []
+    // Legacy collections kept populated so existing chrome (regenerate/copy,
+    // older rendering paths) keeps working — the new timeline below is the
+    // canonical display.
     let steps: StatusStep[] = []
     let readCount = 0
     let thinkingText = ''
+    let lastSearchQuery = ''
+
+    // Chronological timeline of items rendered in the assistant bubble.
+    // - text items accumulate model narration / final answer chunks
+    // - search-start / search-done are added separately per tool call so
+    //   the user sees "Searching: 'X'" stay on screen and "Found N
+    //   documents" appear as a new line beneath it.
+    let timeline: TimelineItem[] = []
 
     try {
       const identity = getIdentity()
@@ -110,7 +138,26 @@ export function useChat(config: WidgetConfig) {
           switch (event.type) {
             case 'tool_start':
               if (event.tool_name === 'search_documents') {
-                steps = [...steps, { icon: 'search', text: 'Searching documentation...' }]
+                const query = extractSearchQuery(event.tool_args)
+                lastSearchQuery = query
+                // One search row per call. count/documents are filled in
+                // on tool_result so "Found N" appears inline next to the
+                // query on the SAME row — no second row below.
+                timeline = [...timeline, { kind: 'search', query }]
+                steps = [...steps, {
+                  icon: 'search',
+                  text: query && strings.searchingFor ? strings.searchingFor(query) : strings.searching,
+                }]
+                // Future text events open a new text item (don't continue
+                // the previous one — that one belonged to pre-search
+                // narration).
+                text = ''
+                updateLast(m => ({ ...m, timeline: [...timeline], steps: [...steps], content: '' }))
+              } else if (event.tool_name === 'get_document_structure') {
+                steps = [...steps, {
+                  icon: 'read',
+                  text: strings.examiningStructure || strings.searching,
+                }]
                 updateLast(m => ({ ...m, steps: [...steps] }))
               }
               break
@@ -119,23 +166,40 @@ export function useChat(config: WidgetConfig) {
               if (event.tool_name === 'search_documents' && event.text) {
                 const documents = parseSelectedDocuments(event.text)
                 const count = documents.length || countSearchResults(event.text)
-                if (count > 0 && steps.length > 0 && steps[steps.length - 1].icon === 'search') {
-                  steps[steps.length - 1] = {
-                    icon: 'search',
-                    text: `Found ${count} relevant document${count > 1 ? 's' : ''}`,
-                    documents,
+                if (count > 0) {
+                  // Fill in count + documents on the pending search row
+                  // (last search item without a count). Same row gets
+                  // the "Found N" suffix inline; no new row added.
+                  for (let i = timeline.length - 1; i >= 0; i--) {
+                    const it = timeline[i]
+                    if (it.kind === 'search' && it.count === undefined) {
+                      timeline = [
+                        ...timeline.slice(0, i),
+                        { kind: 'search', query: it.query, count, documents },
+                        ...timeline.slice(i + 1),
+                      ]
+                      break
+                    }
                   }
-                  updateLast(m => ({ ...m, steps: [...steps] }))
+                  if (steps.length > 0 && steps[steps.length - 1].icon === 'search') {
+                    steps[steps.length - 1] = {
+                      icon: 'search',
+                      text: strings.foundDocs(count),
+                      documents,
+                    }
+                  }
+                  updateLast(m => ({ ...m, timeline: [...timeline], steps: [...steps] }))
+                  lastSearchQuery = ''
                 }
               }
               if (event.tool_name === 'get_page_content') {
                 readCount++
-                const readStep = steps.find(s => s.icon === 'read')
+                const readStep = steps.find(s => s.icon === 'read' && !s.documents)
                 if (readStep) {
-                  readStep.text = `Read ${readCount} section${readCount > 1 ? 's' : ''}`
+                  readStep.text = strings.readSections(readCount)
                   updateLast(m => ({ ...m, steps: [...steps] }))
                 } else {
-                  steps = [...steps, { icon: 'read', text: `Read ${readCount} section` }]
+                  steps = [...steps, { icon: 'read', text: strings.readSections(readCount) }]
                   updateLast(m => ({ ...m, steps: [...steps] }))
                 }
               }
@@ -146,10 +210,82 @@ export function useChat(config: WidgetConfig) {
               updateLast(m => ({ ...m, thinking: thinkingText, isStreaming: true }))
               break
 
-            case 'text':
-              text += event.text || ''
-              updateLast(m => ({ ...m, content: text }))
+            case 'text': {
+              const chunk = event.text || ''
+              text += chunk
+              // Append to the trailing text item or open a new one so the
+              // timeline interleaves text and search items chronologically.
+              const last = timeline[timeline.length - 1]
+              if (last && last.kind === 'text') {
+                timeline = [
+                  ...timeline.slice(0, -1),
+                  { kind: 'text', text: last.text + chunk },
+                ]
+              } else {
+                timeline = [...timeline, { kind: 'text', text: chunk }]
+              }
+              // First text chunk after writer_start clears the composing
+              // indicator; further chunks just hit the same no-op clear.
+              updateLast(m => ({ ...m, content: text, timeline: [...timeline], composing: false }))
               break
+            }
+
+            case 'writer_start': {
+              // Driver loop ended; writer is about to start streaming.
+              // Flag the message so the renderer shows animated dots
+              // while we wait for the first text chunk.
+              updateLast(m => ({ ...m, composing: true }))
+              break
+            }
+
+            case 'truncate_text': {
+              // Server decided the most recent text block was the driver
+              // model's final-iter hand-off / overshoot (e.g. composing
+              // an answer it shouldn't have) and asks us to drop it. The
+              // writer's real answer streams underneath next.
+              for (let i = timeline.length - 1; i >= 0; i--) {
+                if (timeline[i].kind === 'text') {
+                  timeline = [
+                    ...timeline.slice(0, i),
+                    ...timeline.slice(i + 1),
+                  ]
+                  break
+                }
+              }
+              text = timeline
+                .filter((t): t is Extract<TimelineItem, { kind: 'text' }> => t.kind === 'text')
+                .map(t => t.text)
+                .join('\n')
+              updateLast(m => ({ ...m, content: text, timeline: [...timeline] }))
+              break
+            }
+
+            case 'text_replace': {
+              // Server post-processed the writer's text (e.g. stripped a
+              // trailing Sources block the API didn't suppress) and asks
+              // us to replace whatever streamed in with the cleaned
+              // version. Rewrite the last text item and the legacy
+              // `content` mirror so copy / regenerate stay accurate.
+              const replacement = event.text || ''
+              text = replacement
+              let replaced = false
+              for (let i = timeline.length - 1; i >= 0; i--) {
+                if (timeline[i].kind === 'text') {
+                  timeline = [
+                    ...timeline.slice(0, i),
+                    { kind: 'text', text: replacement },
+                    ...timeline.slice(i + 1),
+                  ]
+                  replaced = true
+                  break
+                }
+              }
+              if (!replaced && replacement) {
+                timeline = [...timeline, { kind: 'text', text: replacement }]
+              }
+              updateLast(m => ({ ...m, content: text, timeline: [...timeline] }))
+              break
+            }
 
             case 'sources':
               sources = event.sources || []

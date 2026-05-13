@@ -12,6 +12,12 @@ export type UIStrings = {
   askPlaceholder: string
   continuePlaceholder: string
   searching: string
+  /** Optional: surfaces the actual query Haiku chose ("Searching: 'X'").
+   * Locales without this defined fall back to the generic `searching` string. */
+  searchingFor?: (query: string) => string
+  /** Optional: shown when the agent fetches a doc's heading tree. Fallback:
+   * generic `searching` string. */
+  examiningStructure?: string
   foundDocs: (n: number) => string
   readSections: (n: number) => string
   generating: string
@@ -42,6 +48,8 @@ const en: UIStrings = {
   askPlaceholder: 'Ask a question...',
   continuePlaceholder: 'Continue conversation...',
   searching: 'Searching documentation...',
+  searchingFor: (q) => `Searching: "${q}"`,
+  examiningStructure: 'Examining document structure...',
   foundDocs: (n) => `Found ${n} relevant document${n > 1 ? 's' : ''}`,
   readSections: (n) => `Read ${n} section${n > 1 ? 's' : ''}`,
   generating: 'Generating answer...',
@@ -72,6 +80,8 @@ const tr: UIStrings = {
   askPlaceholder: 'Soru sor...',
   continuePlaceholder: 'Sohbete devam et...',
   searching: 'Belgelerde arıyor...',
+  searchingFor: (q) => `Aranıyor: "${q}"`,
+  examiningStructure: 'Belge yapısı inceleniyor...',
   foundDocs: (n) => `${n} ilgili belge bulundu`,
   readSections: (n) => `${n} bölüm okundu`,
   generating: 'Cevap oluşturuluyor...',

@@ -16,7 +16,7 @@
  */
 
 import { useState } from 'preact/hooks'
-import type { Message as MessageType } from '../types'
+import type { Message as MessageType, SelectedDocument, SourceRef, TimelineItem } from '../types'
 import type { UIStrings } from '../i18n'
 
 interface Props {
@@ -66,28 +66,68 @@ export function Message({
     ? [...new Map(message.sources.map(s => [s.path, s])).values()]
     : []
 
-  // Strip source citations the agent sometimes embeds in the answer text.
-  // The widget already renders sources as discrete chips below, so duplicate
-  // inline references are removed to keep the prose clean.
-  let cleanContent = message.content
-    .replace(/\n*\*{0,2}Sources?:?\*{0,2}[\s\S]*$/i, '')
-    .replace(/\*{2,}$/, '')
-    .replace(/\[[\w/.:-]+\s*—\s*[^\]]*\]/g, '')
-    .replace(/\[[\w/.-]+:\d+\]/g, '')
-    .replace(/\([\w/.-]+:\d+[^)]*\)/g, '')
-    .replace(/Kaynak(?:lar)?:\s*[-\n\w/.,:— ]*/gi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  // Trailing citation-block stripping happens on the backend
+  // (stripTrailingCitationBlock + text_replace SSE event), so the widget
+  // only normalises whitespace here. The previous client-side regex
+  // matched the literal word "Source" anywhere — including inline phrases
+  // like "source files to citation URLs" — and silently truncated the
+  // visible answer at the first match.
+  const cleanText = (raw: string) =>
+    raw.replace(/\n{3,}/g, '\n\n').trim()
+
+  // Final user-visible answer text — last text item in the timeline if the
+  // agent path is active, otherwise the legacy `content` field. Drives copy,
+  // regenerate, and source-chip enablement.
+  const timeline = message.timeline || []
+  const hasTimeline = timeline.length > 0
+  const lastTextItem = [...timeline].reverse().find(it => it.kind === 'text') as
+    | (Extract<TimelineItem, { kind: 'text' }>)
+    | undefined
+  const cleanContent = cleanText(lastTextItem?.text ?? message.content ?? '')
 
   return (
     <div class="knoku-msg-assistant">
-      {/* Status steps */}
-      {message.steps?.map((step, i) => (
+      {/* Chronological timeline: narration text and search steps interleave
+          in the order the agent emitted them. Replaces the older steps[] +
+          thinking + content stack which rendered out of order. */}
+      {hasTimeline && timeline.map((item, i) => {
+        if (item.kind === 'text') {
+          const cleaned = cleanText(item.text)
+          if (!cleaned) return null
+          return (
+            <div
+              key={i}
+              class="knoku-answer"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(cleaned, primaryDomain) }}
+            />
+          )
+        }
+        if (item.kind === 'search') {
+          return (
+            <SearchRow
+              key={i}
+              query={item.query}
+              count={item.count}
+              documents={item.documents}
+              searchingLabel={item.query
+                ? (t.searchingFor ? t.searchingFor(item.query) : `${t.searching} "${item.query}"`)
+                : t.searching}
+              foundLabel={item.count !== undefined ? t.foundDocs(item.count) : ''}
+            />
+          )
+        }
+        return null
+      })}
+
+      {/* Legacy steps render — only shown if the message still uses the old
+          shape (no timeline). Kept for backward compat with previously
+          stored sessions or any code path that bypasses the agent loop. */}
+      {!hasTimeline && message.steps?.map((step, i) => (
         <StatusStepView key={i} step={step} />
       ))}
 
-      {/* Thinking section */}
-      {message.thinking && (
+      {/* Legacy thinking section. */}
+      {!hasTimeline && message.thinking && (
         <ThinkingSection
           t={t}
           text={message.thinking}
@@ -96,31 +136,33 @@ export function Message({
         />
       )}
 
-      {/* Streaming spinner when no content yet and no thinking */}
-      {message.isStreaming && !cleanContent && !message.thinking && (
+      {/* Spinner while the assistant has produced nothing yet — neither
+          timeline items nor legacy content. */}
+      {message.isStreaming && !cleanContent && !hasTimeline && !message.steps?.length && !message.thinking && (
         <div class="knoku-status-line">
           <div class="knoku-status-spinner" />
           <span>{t.generating}</span>
         </div>
       )}
 
-      {/* Answer */}
-      {cleanContent && (
+      {/* Composing indicator — runs between the driver's last tool_result
+          and the writer's first text chunk, so the user sees activity in
+          the second-or-two it takes the writer model to start streaming. */}
+      {message.composing && (
+        <div class="knoku-composing">
+          <span></span><span></span><span></span>
+        </div>
+      )}
+
+      {/* Legacy answer fallback. */}
+      {!hasTimeline && cleanContent && (
         <div class="knoku-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(cleanContent, primaryDomain) }} />
       )}
 
-      {/* Source chips */}
+      {/* Sources dropdown — collapsed by default so the answer stays the
+          focus; click toggles a vertical list of clickable source titles. */}
       {uniqueSources.length > 0 && (
-        <div class="knoku-sources">
-          {uniqueSources.map((src, i) => {
-            const href = resolveSourceHref(src.url_path, src.path, primaryDomain)
-            return (
-              <a key={i} class="knoku-source-chip" href={href} target="_blank" rel="noopener">
-                {src.title || src.path}
-              </a>
-            )
-          })}
-        </div>
+        <SourcesDropdown sources={uniqueSources} primaryDomain={primaryDomain} />
       )}
 
       {/* Actions */}
@@ -137,6 +179,108 @@ export function Message({
           showRegenerate={!!isLastAssistant && !!canRegenerate}
           onRegenerate={onRegenerate}
         />
+      )}
+    </div>
+  )
+}
+
+function SourcesDropdown({ sources, primaryDomain }: {
+  sources: SourceRef[]
+  primaryDomain: string
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div class="knoku-sources-dropdown">
+      <button
+        type="button"
+        class="knoku-sources-toggle"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span>Sources ({sources.length})</span>
+        <svg class="knoku-sources-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style={{ transform: open ? 'rotate(180deg)' : 'none' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && (
+        <div class="knoku-sources-list">
+          {sources.map((src, i) => {
+            const href = resolveSourceHref(src.url_path, src.path, primaryDomain)
+            return (
+              <a key={i} class="knoku-source-link" href={href} target="_blank" rel="noopener">
+                {src.title || src.path}
+              </a>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SearchRow({
+  query: _query,
+  count,
+  documents,
+  searchingLabel,
+  foundLabel,
+}: {
+  query: string
+  count?: number
+  documents?: SelectedDocument[]
+  searchingLabel: string
+  foundLabel: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const hasDocuments = !!documents?.length
+  const isDone = count !== undefined
+
+  const inner = (
+    <>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <span class="knoku-status-text">
+        {searchingLabel}
+        {isDone && (
+          <>
+            <span class="knoku-status-sep"> · </span>
+            <span class="knoku-status-found">{foundLabel}</span>
+          </>
+        )}
+      </span>
+      {hasDocuments && (
+        <svg class="knoku-status-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style={{ transform: expanded ? 'rotate(90deg)' : 'none' }}>
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      )}
+    </>
+  )
+
+  return (
+    <div class="knoku-status-block">
+      {hasDocuments ? (
+        <button class="knoku-status-line knoku-status-button" onClick={() => setExpanded(!expanded)} type="button">
+          {inner}
+        </button>
+      ) : (
+        <div class="knoku-status-line">{inner}</div>
+      )}
+      {hasDocuments && expanded && (
+        <div class="knoku-status-docs">
+          {documents!.map((doc, i) => (
+            <div key={`${doc.path}-${i}`} class="knoku-status-doc">
+              <span class="knoku-status-doc-title">{doc.title || doc.path}</span>
+              {doc.path && <span class="knoku-status-doc-path">{doc.path}</span>}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

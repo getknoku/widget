@@ -8,7 +8,7 @@
 
 /** Server-Sent Event payload sent by the chat backend. */
 export interface SSEEvent {
-  type: 'tool_start' | 'tool_result' | 'thinking' | 'text' | 'sources' | 'error' | 'done'
+  type: 'tool_start' | 'tool_result' | 'thinking' | 'text' | 'text_replace' | 'truncate_text' | 'writer_start' | 'sources' | 'error' | 'done'
   text?: string
   tool_name?: string
   tool_args?: string
@@ -33,12 +33,22 @@ export interface SelectedDocument {
   title: string
 }
 
-/** Single visible step in the assistant's tool-use status strip. */
+/** Single visible step in the assistant's tool-use status strip.
+ * Deprecated — kept for back-compat; new agent flow uses `timeline`. */
 export interface StatusStep {
   icon: 'search' | 'read'
   text: string
   documents?: SelectedDocument[]
 }
+
+/** Items in the assistant's chronological timeline. The agent path renders
+ * these in insertion order so the user sees narration text and search
+ * steps interleaved exactly as they happen. A single `search` item starts
+ * with just the query; the count and documents fill in when the tool
+ * returns, and the same row updates inline (no second row beneath). */
+export type TimelineItem =
+  | { kind: 'text'; text: string }
+  | { kind: 'search'; query: string; count?: number; documents?: SelectedDocument[] }
 
 /** A user or assistant message rendered inside the chat panel. */
 export interface Message {
@@ -46,11 +56,17 @@ export interface Message {
   content: string
   sources?: SourceRef[]
   steps?: StatusStep[]
+  timeline?: TimelineItem[]
   isStreaming?: boolean
   regenerateCount?: number
   image?: string
   thinking?: string
   thinkingDuration?: number
+  /** True between the writer_start event and the first text chunk of the
+   * writer's response — renders an animated dots indicator so the gap
+   * between the last search step and the streaming answer doesn't look
+   * like a freeze. */
+  composing?: boolean
 }
 
 /**

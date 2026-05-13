@@ -369,7 +369,26 @@
   max-height: 200px; overflow-y: auto;
 }
 
-/* Sources chips */
+/* Composing dots — shown briefly between the last tool_result and the
+   writer model's first streamed chunk so the wait doesn't look frozen.
+   Square-rounded dots with staggered pulse opacity. */
+.knoku-composing {
+  display: inline-flex; gap: 5px; margin-top: 8px; padding: 4px 0;
+}
+.knoku-composing span {
+  display: block; width: 6px; height: 6px;
+  background: var(--text-placeholder);
+  border-radius: 2px;
+  animation: knokuComposingPulse 1.2s ease-in-out infinite both;
+}
+.knoku-composing span:nth-child(1) { animation-delay: -0.32s; }
+.knoku-composing span:nth-child(2) { animation-delay: -0.16s; }
+@keyframes knokuComposingPulse {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+  40%           { opacity: 1;    transform: scale(1); }
+}
+
+/* Sources chips (legacy — kept for any callers still using the flat chip strip) */
 .knoku-sources {
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
 }
@@ -379,6 +398,34 @@
   cursor: pointer; transition: background 0.1s;
 }
 .knoku-source-chip:hover { background: var(--bg-accent-hover); }
+
+/* Sources dropdown — collapsed pill that expands to a vertical link list */
+.knoku-sources-dropdown {
+  margin-top: 10px;
+}
+.knoku-sources-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-secondary);
+  background: none; border: none; padding: 4px 0;
+  cursor: pointer; font-family: inherit;
+}
+.knoku-sources-toggle:hover { color: var(--text-primary); }
+.knoku-sources-toggle .knoku-sources-chevron {
+  transition: transform 0.15s ease;
+}
+.knoku-sources-list {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-top: 6px;
+}
+.knoku-source-link {
+  font-size: 13px; color: var(--primary); text-decoration: none;
+  padding: 4px 0;
+}
+.knoku-source-link:hover { text-decoration: underline; }
+.knoku-source-link-path {
+  font-size: 11px; color: var(--text-placeholder);
+  margin-left: 6px;
+}
 
 /* Action buttons */
 .knoku-actions {

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-13
+
+### Added
+- Chronological timeline rendering: narration, search steps, and the answer interleave in event order instead of stacking in fixed sections.
+- Collapsed Sources dropdown that expands to a vertical link list (replaces the flat chip strip).
+- Animated dots indicator while the assistant composes the final answer.
+- Search step shows the query the model picked and updates inline with the result count on the same row.
+
+### Fixed
+- Client-side citation-block stripping silently truncated answers when the word "source" appeared inline (e.g. "source files to citation URLs"). Trailing-block cleanup moved server-side; the widget only normalises whitespace.
+- Source chip label now uses the document title instead of whichever subsection won path-based deduplication.
+
 ## [0.2.3] - 2026-05-12
 
 ### Added
@@ -65,7 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release.
 
-[Unreleased]: https://github.com/getknoku/widget/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/getknoku/widget/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/getknoku/widget/compare/v0.2.4...v0.3.0
 [0.2.3]: https://github.com/getknoku/widget/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/getknoku/widget/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/getknoku/widget/compare/v0.2.0...v0.2.1
