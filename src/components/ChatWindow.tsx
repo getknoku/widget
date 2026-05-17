@@ -167,6 +167,7 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
               apiUrl={config.apiUrl}
               projectId={config.projectId}
               primaryDomain={config.primaryDomain}
+              turnstileSiteKey={config.turnstileSiteKey}
               sessionId={sessionId}
               messageIndex={i}
               isLastAssistant={isLastAssistant}

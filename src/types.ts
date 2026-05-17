@@ -138,6 +138,14 @@ export interface WidgetConfig {
    */
   mcpEnabled: boolean
   mcpUrl: string
+  /**
+   * Customer-owned Cloudflare Turnstile site key. Set by the backend when
+   * the project's owner has configured Turnstile in the dashboard. Empty
+   * string disables the gate — `useChat` / feedback POSTs skip token
+   * issuance and the request goes out unauthenticated (legacy widget
+   * behavior). See features/widget-auth-hardening/plan.md.
+   */
+  turnstileSiteKey: string
   language: string
   consent: ConsentConfig
   componentStyles: Record<string, Record<string, string>>

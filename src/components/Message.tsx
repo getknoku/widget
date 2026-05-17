@@ -18,6 +18,7 @@
 import { useState, useMemo } from 'preact/hooks'
 import type { Message as MessageType, SelectedDocument, SourceRef, TimelineItem } from '../types'
 import type { UIStrings } from '../i18n'
+import { getTurnstileToken } from '../turnstile'
 
 interface Props {
   message: MessageType
@@ -30,6 +31,11 @@ interface Props {
    * correct when widget is mounted on the same host as the docs.
    */
   primaryDomain: string
+  /**
+   * Cloudflare Turnstile site key when the project's owner configured it.
+   * Empty string disables the gate; feedback POSTs go out unauthenticated.
+   */
+  turnstileSiteKey: string
   sessionId: string | null
   messageIndex: number
   isLastAssistant?: boolean
@@ -43,6 +49,7 @@ export function Message({
   apiUrl,
   projectId,
   primaryDomain,
+  turnstileSiteKey,
   sessionId,
   messageIndex,
   isLastAssistant,
@@ -179,6 +186,7 @@ export function Message({
           apiUrl={apiUrl}
           projectId={projectId}
           primaryDomain={primaryDomain}
+          turnstileSiteKey={turnstileSiteKey}
           sessionId={sessionId}
           messageIndex={messageIndex}
           showRegenerate={!!isLastAssistant && !!canRegenerate}
@@ -369,6 +377,7 @@ function ActionButtons({
   apiUrl,
   projectId,
   primaryDomain,
+  turnstileSiteKey,
   sessionId,
   messageIndex,
   showRegenerate,
@@ -380,6 +389,7 @@ function ActionButtons({
   apiUrl: string
   projectId: string
   primaryDomain: string
+  turnstileSiteKey: string
   sessionId: string | null
   messageIndex: number
   showRegenerate?: boolean
@@ -402,9 +412,19 @@ function ActionButtons({
     setLiked(nextState)
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (turnstileSiteKey) {
+        try {
+          const token = await getTurnstileToken(turnstileSiteKey, 'feedback')
+          if (token) headers['cf-turnstile-response'] = token
+        } catch {
+          // Token fetch failed; the request goes out anyway, backend will
+          // 403 and the catch below rolls the UI back.
+        }
+      }
       const res = await fetch(`${apiUrl}/api/v1/feedback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           project_id: projectId,
           session_id: sessionId,

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-05-17
+
+### Added
+- `WidgetConfig.turnstileSiteKey` read from `/api/v1/config/{projectId}` (`turnstile_site_key` field). When the project owner has configured a customer-owned Cloudflare Turnstile site key on the dashboard, the widget injects the Turnstile script and attaches a `cf-turnstile-response` header to every `/api/v1/chat` and `/api/v1/feedback` request. Empty value preserves the previous unauthenticated behavior.
+- `src/turnstile.ts` module: idempotent script injection, ready-promise gate, 10s timeout, per-request token via `getTurnstileToken('chat' | 'feedback')`. Bundle size: +~1 KB gzip.
+
+## [0.3.1] - 2026-05-17
+
+### Added
+- Streamed answer text now drains through a `requestAnimationFrame` smoothing buffer instead of painting each SSE chunk verbatim. Fast token streams render as a steady typewriter cadence rather than a single-frame dump.
+- `search_documents` tool calls render the model-written narration sentence as a separate bubble before the search-step chip. Backends that emit the optional `narration` argument get a per-search "what we're looking up" line; older backends fall back to the generic "Searching..." label.
+
 ### Changed
 - `sources` SSE event handler ignores payloads tagged `source_role` other than `cited`. Backends emitting both a retrieved and a cited set per turn no longer cause the source chip list to flicker through the retrieved superset. Untagged `sources` events (older backends) continue to render as before.
 

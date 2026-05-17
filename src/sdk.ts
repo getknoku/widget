@@ -79,6 +79,9 @@ export const DEFAULT_WIDGET_CONFIG: Omit<WidgetConfig, 'projectId'> = {
   // org's plan covers it. Widget reads but never sets.
   mcpEnabled: false,
   mcpUrl: '',
+  // Backend-controlled: customer-owned Cloudflare Turnstile site key (public).
+  // Empty disables the gate (legacy widget behavior).
+  turnstileSiteKey: '',
   // Overridden by detectBrowserLanguage() unless the caller sets `language` explicitly.
   language: 'en',
   consent: DEFAULT_CONSENT_CONFIG,
@@ -192,6 +195,7 @@ export function createWidgetConfig(options: KnokuWidgetInitOptions): WidgetConfi
     primaryDomain: DEFAULT_WIDGET_CONFIG.primaryDomain,
     mcpEnabled: DEFAULT_WIDGET_CONFIG.mcpEnabled,
     mcpUrl: DEFAULT_WIDGET_CONFIG.mcpUrl,
+    turnstileSiteKey: DEFAULT_WIDGET_CONFIG.turnstileSiteKey,
     language,
     consent: mergeConsent(options.consent, defaultConsent),
     componentStyles: mergeComponentStyles(options.componentStyles),
@@ -218,6 +222,7 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
       primary_domain?: string
       mcp_enabled?: boolean
       mcp_url?: string
+      turnstile_site_key?: string
     }
     if (remoteConfig && remoteConfig.active === false) {
       if (remoteConfig.disabled_reason) {
@@ -233,6 +238,9 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
       : ''
     const remoteMCPEnabled = remoteConfig?.mcp_enabled === true
     const remoteMCPUrl = typeof remoteConfig?.mcp_url === 'string' ? remoteConfig.mcp_url : ''
+    const remoteTurnstileSiteKey = typeof remoteConfig?.turnstile_site_key === 'string'
+      ? remoteConfig.turnstile_site_key
+      : ''
 
     return {
       ...localConfig,
@@ -240,6 +248,7 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
       primaryDomain: remotePrimaryDomain,
       mcpEnabled: remoteMCPEnabled && remoteMCPUrl !== '',
       mcpUrl: remoteMCPUrl,
+      turnstileSiteKey: remoteTurnstileSiteKey,
     }
   } catch {
     return null

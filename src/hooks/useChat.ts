@@ -17,6 +17,7 @@ import type { Message, SelectedDocument, SSEEvent, SourceRef, StatusStep, Timeli
 import { getOrCreateWebID } from '../cookie'
 import { getIdentity } from '../identity'
 import { getDictionary } from '../i18n'
+import { getTurnstileToken } from '../turnstile'
 
 // Pull the search query out of a tool_args payload like
 // `{"query":"X","top_k":5}`. Returns '' for malformed / non-string queries
@@ -184,9 +185,20 @@ export function useChat(config: WidgetConfig) {
         body.image = imageBase64
       }
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (config.turnstileSiteKey) {
+        try {
+          const token = await getTurnstileToken(config.turnstileSiteKey, 'chat')
+          if (token) headers['cf-turnstile-response'] = token
+        } catch {
+          // Token fetch failed (script blocked, timeout). The backend will
+          // 403 us; surfacing a generic "bağlantı sorunu" message lets the
+          // user retry without leaking the verification mechanism.
+        }
+      }
       const response = await fetch(`${config.apiUrl}/api/v1/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
         signal: controller.signal,
       })
