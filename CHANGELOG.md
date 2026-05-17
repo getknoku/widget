@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-05-17
+
+### Fixed
+- Token issuance now uses `turnstile.render` on a fixed-position bottom-right `<div>` with `appearance: 'interaction-only'`, and reads the token from the `callback` option. The previous implementation called `turnstile.execute(undefined, { sitekey, action })`, which is not a real Cloudflare API — it returned `undefined`, so the `cf-turnstile-response` header was never attached and every chat request 403&rsquo;d. Each call renders a fresh widget and removes it after a single successful issuance. The container stays in the viewport so the visitor can complete the rare interactive challenge if Cloudflare's risk engine asks for one.
+
 ## [0.3.3] - 2026-05-17
 
 ### Fixed
