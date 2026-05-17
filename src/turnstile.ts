@@ -50,17 +50,22 @@ export function ensureTurnstileReady(siteKey: string): Promise<void> {
     if (!document.querySelector('script[data-knoku-turnstile]')) {
       const s = document.createElement('script')
       s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
-      s.async = true
-      s.defer = true
+      // Cloudflare rejects async/defer on the api.js tag when consumers call
+      // turnstile.ready(). Dynamic scripts execute asynchronously by default,
+      // so omitting both attributes is correct here.
       s.setAttribute('data-knoku-turnstile', '1')
       s.onerror = () => reject(new Error('turnstile_script_failed'))
       document.head.appendChild(s)
     }
     const start = Date.now()
     const tick = () => {
+      // Poll for the global rather than calling turnstile.ready() — ready()
+      // is incompatible with async/defer and we don't need it: once the
+      // global exposes execute(), the SDK is initialized enough to issue a
+      // token.
       const ts = window.turnstile
-      if (ts && typeof ts.ready === 'function') {
-        ts.ready(() => resolve())
+      if (ts && typeof ts.execute === 'function') {
+        resolve()
         return
       }
       if (Date.now() - start > READY_TIMEOUT_MS) {

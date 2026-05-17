@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-17
+
+### Fixed
+- Turnstile script tag no longer sets `async`/`defer`. Cloudflare's `api.js` throws `Remove async/defer from the Turnstile api.js script tag before using turnstile.ready()` and refuses to initialise when these attributes are present, breaking token issuance on every chat request. The widget now polls `window.turnstile.execute` directly instead of calling `turnstile.ready()`, which removes the dependency on the attributes and keeps initialisation reliable on slower connections.
+
 ## [0.3.2] - 2026-05-17
 
 ### Added
