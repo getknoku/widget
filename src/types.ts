@@ -13,6 +13,13 @@ export interface SSEEvent {
   tool_name?: string
   tool_args?: string
   sources?: SourceRef[]
+  /**
+   * Tags `sources` events as the retrieved set, cited subset, or M3+
+   * tool-sourced refs. The widget only renders the `cited` payload; the
+   * `retrieved` event is opt-in telemetry the dashboard consumes.
+   * Absent on legacy backend builds — treat that case as `cited`.
+   */
+  source_role?: 'retrieved' | 'cited' | 'tool_output'
   session_id?: string
 }
 

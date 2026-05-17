@@ -288,6 +288,16 @@ export function useChat(config: WidgetConfig) {
             }
 
             case 'sources':
+              // The backend emits `sources` twice per turn once
+              // KNOKU_EMIT_RETRIEVED_SOURCES is on — first with
+              // source_role=retrieved (the full retrieval set, for
+              // dashboard analytics), then source_role=cited (the
+              // user-facing subset). Render only the cited payload so
+              // the chip list does not flicker through the retrieved
+              // superset. Older backend builds omit source_role; treat
+              // the untagged event as cited (the prior single-emission
+              // contract) so this widget keeps working unchanged.
+              if (event.source_role && event.source_role !== 'cited') break
               sources = event.sources || []
               updateLast(m => ({ ...m, sources }))
               break
