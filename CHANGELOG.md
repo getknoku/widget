@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `sources` SSE event handler ignores payloads tagged `source_role` other than `cited`. Backends emitting both a retrieved and a cited set per turn no longer cause the source chip list to flicker through the retrieved superset. Untagged `sources` events (older backends) continue to render as before.
+
 ## [0.3.0] - 2026-05-13
 
 ### Added
