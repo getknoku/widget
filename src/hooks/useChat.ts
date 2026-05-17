@@ -32,6 +32,22 @@ function extractSearchQuery(toolArgs?: string): string {
   return ''
 }
 
+// Pull the model-written narration sentence out of a search_documents
+// tool_args payload. Narration is what the driver wrote in the user's
+// language to describe what it's looking up — used as the search-step
+// chip label. Older backend builds may not include it; callers should
+// fall back to a generic "Searching..." string.
+function extractSearchNarration(toolArgs?: string): string {
+  if (!toolArgs) return ''
+  try {
+    const args = JSON.parse(toolArgs)
+    if (args && typeof args.narration === 'string') return args.narration.trim()
+  } catch {
+    /* partial / non-JSON — fall through */
+  }
+  return ''
+}
+
 export function useChat(config: WidgetConfig) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -83,6 +99,72 @@ export function useChat(config: WidgetConfig) {
     //   the user sees "Searching: 'X'" stay on screen and "Found N
     //   documents" appear as a new line beneath it.
     let timeline: TimelineItem[] = []
+
+    // Smoothing layer for streamed answer text. Token-rate from the LLM is
+    // bursty (≥100 tok/s on a hot provider, much slower under load);
+    // splicing every chunk into the timeline produces a jerky dump-style
+    // paint. SSE chunks go into `textBuffer` (a mutable closure ref); a
+    // requestAnimationFrame loop drains a few chars per frame into the
+    // displayed timeline. One setMessages call per frame max — aligned
+    // with the browser paint cycle so we never queue work the user won't
+    // see.
+    let textBuffer = ''
+    let smoothRafId: number | null = null
+    let lastFrameTime = 0
+
+    const appendDisplayed = (chunk: string) => {
+      const last = timeline[timeline.length - 1]
+      if (last && last.kind === 'text') {
+        timeline = [
+          ...timeline.slice(0, -1),
+          { kind: 'text', text: last.text + chunk },
+        ]
+      } else {
+        timeline = [...timeline, { kind: 'text', text: chunk }]
+      }
+      text += chunk
+      updateLast(m => ({ ...m, content: text, timeline: [...timeline], composing: false }))
+    }
+
+    const cancelSmoothing = () => {
+      if (smoothRafId !== null) {
+        cancelAnimationFrame(smoothRafId)
+        smoothRafId = null
+      }
+    }
+
+    const drainSmoothing = () => {
+      cancelSmoothing()
+      if (textBuffer.length === 0) return
+      const flush = textBuffer
+      textBuffer = ''
+      appendDisplayed(flush)
+    }
+
+    const scheduleSmoothTick = () => {
+      if (smoothRafId !== null) return
+      const tick = (frameTime: number) => {
+        smoothRafId = null
+        if (textBuffer.length === 0) return
+        // Time-based pacing: how many chars to emit since the last frame.
+        // Floor at ~200 cps so the user always sees a typewriter cadence
+        // even when the model dumps a long answer in one chunk. Scale up
+        // when the buffer is big so we don't fall multiple seconds behind
+        // a fast model (≈4s worst-case drain), but never instant flush.
+        const dt = lastFrameTime ? Math.min(frameTime - lastFrameTime, 64) : 16
+        lastFrameTime = frameTime
+        const cps = Math.max(200, textBuffer.length / 4)
+        const charsThisTick = Math.max(1, Math.round(cps * (dt / 1000)))
+        const chunk = textBuffer.slice(0, charsThisTick)
+        textBuffer = textBuffer.slice(charsThisTick)
+        appendDisplayed(chunk)
+        if (textBuffer.length > 0) {
+          smoothRafId = requestAnimationFrame(tick)
+        }
+      }
+      lastFrameTime = 0
+      smoothRafId = requestAnimationFrame(tick)
+    }
 
     try {
       const identity = getIdentity()
@@ -137,20 +219,28 @@ export function useChat(config: WidgetConfig) {
 
           switch (event.type) {
             case 'tool_start':
+              drainSmoothing()
               if (event.tool_name === 'search_documents') {
                 const query = extractSearchQuery(event.tool_args)
+                const narration = extractSearchNarration(event.tool_args)
                 lastSearchQuery = query
-                // One search row per call. count/documents are filled in
-                // on tool_result so "Found N" appears inline next to the
-                // query on the SAME row — no second row below.
-                timeline = [...timeline, { kind: 'search', query }]
+                // Surface the model-written narration as its own prose
+                // bubble BEFORE the search-step chip. Flash Lite skips
+                // free-form preamble before tool calls, so we synthesize
+                // the bubble from the required `narration` tool argument.
+                // The chip below stays generic ("Searching..." → "Found
+                // N") — the narration text is what tells the user WHAT
+                // we're looking up.
+                if (narration) {
+                  timeline = [...timeline, { kind: 'text', text: narration }]
+                }
+                timeline = [...timeline, { kind: 'search', query, narration }]
                 steps = [...steps, {
                   icon: 'search',
-                  text: query && strings.searchingFor ? strings.searchingFor(query) : strings.searching,
+                  text: strings.searching,
                 }]
                 // Future text events open a new text item (don't continue
-                // the previous one — that one belonged to pre-search
-                // narration).
+                // the synthesized narration one).
                 text = ''
                 updateLast(m => ({ ...m, timeline: [...timeline], steps: [...steps], content: '' }))
               } else if (event.tool_name === 'get_document_structure') {
@@ -175,7 +265,7 @@ export function useChat(config: WidgetConfig) {
                     if (it.kind === 'search' && it.count === undefined) {
                       timeline = [
                         ...timeline.slice(0, i),
-                        { kind: 'search', query: it.query, count, documents },
+                        { kind: 'search', query: it.query, narration: it.narration, count, documents },
                         ...timeline.slice(i + 1),
                       ]
                       break
@@ -211,22 +301,11 @@ export function useChat(config: WidgetConfig) {
               break
 
             case 'text': {
-              const chunk = event.text || ''
-              text += chunk
-              // Append to the trailing text item or open a new one so the
-              // timeline interleaves text and search items chronologically.
-              const last = timeline[timeline.length - 1]
-              if (last && last.kind === 'text') {
-                timeline = [
-                  ...timeline.slice(0, -1),
-                  { kind: 'text', text: last.text + chunk },
-                ]
-              } else {
-                timeline = [...timeline, { kind: 'text', text: chunk }]
-              }
-              // First text chunk after writer_start clears the composing
-              // indicator; further chunks just hit the same no-op clear.
-              updateLast(m => ({ ...m, content: text, timeline: [...timeline], composing: false }))
+              // Push raw chunk into the smoothing buffer; the tick drains
+              // it into the timeline at a steady cadence. See textBuffer /
+              // scheduleSmoothTick at the top of sendMessage for rationale.
+              textBuffer += event.text || ''
+              scheduleSmoothTick()
               break
             }
 
@@ -242,7 +321,11 @@ export function useChat(config: WidgetConfig) {
               // Server decided the most recent text block was the driver
               // model's final-iter hand-off / overshoot (e.g. composing
               // an answer it shouldn't have) and asks us to drop it. The
-              // writer's real answer streams underneath next.
+              // writer's real answer streams underneath next. Cancel any
+              // in-flight smoothing so we don't paint chunks after the
+              // truncation point.
+              cancelSmoothing()
+              textBuffer = ''
               for (let i = timeline.length - 1; i >= 0; i--) {
                 if (timeline[i].kind === 'text') {
                   timeline = [
@@ -266,6 +349,10 @@ export function useChat(config: WidgetConfig) {
               // us to replace whatever streamed in with the cleaned
               // version. Rewrite the last text item and the legacy
               // `content` mirror so copy / regenerate stay accurate.
+              // Drain any pending smoothing buffer first so the cleaned
+              // version isn't immediately appended-to.
+              cancelSmoothing()
+              textBuffer = ''
               const replacement = event.text || ''
               text = replacement
               let replaced = false
@@ -303,25 +390,43 @@ export function useChat(config: WidgetConfig) {
               break
 
             case 'error':
+              cancelSmoothing()
+              textBuffer = ''
               updateLast(m => ({ ...m, content: `Error: ${event.text}`, isStreaming: false }))
               setIsLoading(false)
               return
 
-            case 'done':
-              if (event.session_id) {
-                sessionIdRef.current = event.session_id
-                setSessionId(event.session_id)
-              }
-              updateLast(m => {
-                const update: Message = { ...m, isStreaming: false }
-                if (m.thinking && m.thinkingDuration === undefined) {
-                  update.thinkingDuration = 0
+            case 'done': {
+              // Defer the "turn complete" UI signals (isStreaming=false,
+              // knoku:response event, spinner clear) until the smoothing
+              // buffer has finished typing out. Without this, the last
+              // chunk of the answer dumps in one frame the moment the SSE
+              // closes — defeating the whole point of the cadence.
+              const finalize = () => {
+                if (event.session_id) {
+                  sessionIdRef.current = event.session_id
+                  setSessionId(event.session_id)
                 }
-                return update
-              })
-              setIsLoading(false)
-              window.dispatchEvent(new CustomEvent('knoku:response', { detail: { answer: text, sources } }))
+                updateLast(m => {
+                  const update: Message = { ...m, isStreaming: false }
+                  if (m.thinking && m.thinkingDuration === undefined) {
+                    update.thinkingDuration = 0
+                  }
+                  return update
+                })
+                setIsLoading(false)
+                window.dispatchEvent(new CustomEvent('knoku:response', { detail: { answer: text, sources } }))
+              }
+              const waitForDrain = () => {
+                if (textBuffer.length === 0 && smoothRafId === null) {
+                  finalize()
+                } else {
+                  setTimeout(waitForDrain, 40)
+                }
+              }
+              waitForDrain()
               return
+            }
           }
         }
       }

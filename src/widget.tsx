@@ -47,9 +47,27 @@ function Widget({ config }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [initialQuestion, setInitialQuestion] = useState('')
   const [hasOpened, setHasOpened] = useState(false)
+  // Tracks whether the panel is at the "open" visual state. Lags `isOpen` by
+  // one frame on open so the panel mounts in its closed CSS state first and
+  // the transition has a "from" state to animate from. On close it flips
+  // immediately so the exit transition runs while the panel stays mounted.
+  const [panelVisible, setPanelVisible] = useState(false)
+  // Wide-panel toggle (the maximize button in the header). Drives a
+  // data-attribute the CSS selects to widen `.knoku-panel`; body-push
+  // margin in the effect below tracks the same flag so site content
+  // shifts in sync with the panel width.
+  const [panelWide, setPanelWide] = useState(false)
   const [consentState, setConsentState] = useState<'accepted' | 'rejected' | ''>(
     () => (config.consent.required ? readConsent(config.projectId) : 'accepted'),
   )
+
+  useEffect(() => {
+    if (isOpen) {
+      const id = requestAnimationFrame(() => setPanelVisible(true))
+      return () => cancelAnimationFrame(id)
+    }
+    setPanelVisible(false)
+  }, [isOpen])
 
   useEffect(() => {
     const handleOpen = () => {
@@ -109,10 +127,11 @@ function Widget({ config }: Props) {
       document.head.appendChild(s)
       return s
     })()
+    const w = panelWide ? 560 : 380
     pageStyle.textContent = isOpen
-      ? 'body { margin-right: 440px !important; transition: margin-right 0.2s ease; } @media (max-width: 640px) { body { margin-right: 0 !important; } }'
-      : 'body { transition: margin-right 0.2s ease; }'
-  }, [isOpen, config.layout])
+      ? `body { margin-right: ${w}px !important; transition: margin-right 280ms cubic-bezier(0.2, 0.8, 0.2, 1); } @media (max-width: 640px) { body { margin-right: 0 !important; } }`
+      : 'body { transition: margin-right 280ms cubic-bezier(0.2, 0.8, 0.2, 1); }'
+  }, [isOpen, config.layout, panelWide])
 
   const handleBarOpen = () => {
     setIsOpen(true)
@@ -137,9 +156,16 @@ function Widget({ config }: Props) {
         />
       )}
 
-      {/* Side panel — once opened, kept mounted and toggled via display:none so chat state survives close/reopen */}
+      {/* Side panel — once opened, stays mounted so chat state survives close/reopen.
+          Visibility is driven by a data attribute the CSS selects against; the
+          panel itself transitions transform + opacity in both directions.
+          `data-knoku-panel-wide` toggles the wider layout the maximize button
+          flips between. */}
       {hasOpened && (
-        <div style={{ display: isOpen ? 'block' : 'none' }}>
+        <div
+          data-knoku-panel-open={panelVisible ? 'true' : 'false'}
+          data-knoku-panel-wide={panelWide ? 'true' : 'false'}
+        >
           {needsConsent ? (
             <div class="knoku-panel">
               <ConsentScreen
@@ -156,6 +182,8 @@ function Widget({ config }: Props) {
               initialQuestion={initialQuestion}
               onClose={handleClose}
               onQuestionSent={() => setInitialQuestion('')}
+              panelWide={panelWide}
+              onToggleWide={() => setPanelWide(p => !p)}
             />
           )}
         </div>

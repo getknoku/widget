@@ -41,6 +41,10 @@ export type UIStrings = {
   consentAcceptText: string
   consentRejectText: string
   dismiss: string
+  /** Optional: header button tooltips for the wide-panel toggle. Fallback
+   * is the English literal so omitting them is safe. */
+  expand?: string
+  collapse?: string
 }
 
 const en: UIStrings = {

@@ -17,12 +17,14 @@ interface Props {
   initialQuestion: string
   onClose: () => void
   onQuestionSent: () => void
+  panelWide?: boolean
+  onToggleWide?: () => void
 }
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 const MAX_SIZE = 5 * 1024 * 1024 // 5 MB cap, matches backend.
 
-export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent }: Props) {
+export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent, panelWide, onToggleWide }: Props) {
   const [input, setInput] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -30,6 +32,13 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
   const messagesRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  // Stays true while the user is reading at the bottom of the message list.
+  // Flips false the moment they scroll up — we then stop snapping to the
+  // bottom on every streamed-text update, which was the source of the
+  // up/down jitter when answer text, markdown links, and sources blocks
+  // all re-rendered within the same frame.
+  const stickToBottomRef = useRef(true)
+  const scrollRafRef = useRef<number | null>(null)
   const { messages, isLoading, sessionId, sendMessage, regenerate } = useChat(config)
 
   // Auto-submit a question handed in via Knoku.ask() — see widget.tsx handleAsk.
@@ -39,11 +48,32 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
     onQuestionSent()
   }, [initialQuestion, onQuestionSent, sendMessage])
 
-  // Stick to the bottom of the message list as new content streams in.
+  // Track whether the user has scrolled away from the bottom. Threshold is
+  // generous (50px) so a few pixels of natural overshoot from streamed
+  // content doesn't flip us off auto-stick.
   useEffect(() => {
-    if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight
+    const el = messagesRef.current
+    if (!el) return
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+      stickToBottomRef.current = dist < 50
     }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Stick to the bottom as new content streams in, but only when the user
+  // is already there. Coalesce multiple updates per frame into one scroll
+  // via rAF so the streaming text → markdown link → sources cascade
+  // doesn't trigger 3-4 scrolls in adjacent frames.
+  useEffect(() => {
+    if (!stickToBottomRef.current) return
+    if (scrollRafRef.current !== null) return
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null
+      const el = messagesRef.current
+      if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight
+    })
   }, [messages])
 
   const handleFile = (file: File) => {
@@ -92,6 +122,25 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
         <div class="knoku-header-actions">
           {config.mcpEnabled && config.mcpUrl && (
             <McpButton mcpUrl={config.mcpUrl} />
+          )}
+          {onToggleWide && (
+            <button class="knoku-header-btn" onClick={onToggleWide} title={panelWide ? (t.collapse || 'Collapse') : (t.expand || 'Expand')}>
+              {panelWide ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="4 14 10 14 10 20"/>
+                  <polyline points="20 10 14 10 14 4"/>
+                  <line x1="14" y1="10" x2="21" y2="3"/>
+                  <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 3 21 3 21 9"/>
+                  <polyline points="9 21 3 21 3 15"/>
+                  <line x1="21" y1="3" x2="14" y2="10"/>
+                  <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+              )}
+            </button>
           )}
           <button class="knoku-header-btn" onClick={onClose} title={t.close}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

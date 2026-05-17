@@ -15,7 +15,7 @@
  * URL sanitizer for AI-authored links.
  */
 
-import { useState } from 'preact/hooks'
+import { useState, useMemo } from 'preact/hooks'
 import type { Message as MessageType, SelectedDocument, SourceRef, TimelineItem } from '../types'
 import type { UIStrings } from '../i18n'
 
@@ -95,23 +95,28 @@ export function Message({
           const cleaned = cleanText(item.text)
           if (!cleaned) return null
           return (
-            <div
+            <MarkdownText
               key={i}
-              class="knoku-answer"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(cleaned, primaryDomain) }}
+              text={cleaned}
+              primaryDomain={primaryDomain}
             />
           )
         }
         if (item.kind === 'search') {
+          // Chip stays generic — narration rides above the chip as its own
+          // prose bubble (synthesized in useChat from the tool_args
+          // narration arg). The chip's job here is just step indication:
+          // "Searching documentation..." while in-flight, "Found N
+          // relevant documents" once the count is in. We deliberately do
+          // NOT echo the raw query in quotes — that pattern read as debug
+          // output.
           return (
             <SearchRow
               key={i}
               query={item.query}
               count={item.count}
               documents={item.documents}
-              searchingLabel={item.query
-                ? (t.searchingFor ? t.searchingFor(item.query) : `${t.searching} "${item.query}"`)
-                : t.searching}
+              searchingLabel={t.searching}
               foundLabel={item.count !== undefined ? t.foundDocs(item.count) : ''}
             />
           )
@@ -156,7 +161,7 @@ export function Message({
 
       {/* Legacy answer fallback. */}
       {!hasTimeline && cleanContent && (
-        <div class="knoku-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(cleanContent, primaryDomain) }} />
+        <MarkdownText text={cleanContent} primaryDomain={primaryDomain} />
       )}
 
       {/* Sources dropdown — collapsed by default so the answer stays the
@@ -246,13 +251,7 @@ function SearchRow({
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
       <span class="knoku-status-text">
-        {searchingLabel}
-        {isDone && (
-          <>
-            <span class="knoku-status-sep"> · </span>
-            <span class="knoku-status-found">{foundLabel}</span>
-          </>
-        )}
+        {isDone && foundLabel ? foundLabel : searchingLabel}
       </span>
       {hasDocuments && (
         <svg class="knoku-status-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -457,13 +456,11 @@ function formatCopyText(content: string, sources: NonNullable<MessageType['sourc
   const base = sourceLinkBase(primaryDomain)
   const sourceLines = sources.map((src) => {
     const label = src.title || src.path
-    const lineSuffix = src.lines ? ` — lines ${src.lines}` : ''
     if (src.url_path) {
       const url = src.url_path.startsWith('http') ? src.url_path : `${base}${src.url_path}`
-      return `- [${label}](${url})${lineSuffix}`
+      return `- [${label}](${url})`
     }
-    const location = src.path ? `${src.path}${src.lines ? `:${src.lines}` : ''}` : ''
-    return location ? `- ${label} (${location})` : `- ${label}`
+    return src.path ? `- ${label} (${src.path})` : `- ${label}`
   })
 
   return `${content}\n\nSources:\n${sourceLines.join('\n')}`
@@ -507,6 +504,16 @@ function resolveSourceHref(urlPath: string | undefined, path: string, primaryDom
  * grammar is intentionally narrow — only what the docs agent emits — to
  * keep the bundle small.
  */
+// Tiny wrapper that memoizes the markdown parse — re-parses only when the
+// text or primaryDomain actually changes. For inactive messages this is a
+// pure no-op (props are stable); for the active streaming message the
+// parse re-runs in step with the smoothing tick, which is unavoidable but
+// localised to this single text block rather than the entire chat list.
+function MarkdownText({ text, primaryDomain }: { text: string; primaryDomain: string }) {
+  const html = useMemo(() => renderMarkdown(text, primaryDomain), [text, primaryDomain])
+  return <div class="knoku-answer" dangerouslySetInnerHTML={{ __html: html }} />
+}
+
 function renderMarkdown(text: string, primaryDomain: string): string {
   if (!text) return ''
   const inlBound = (s: string) => inl(s, primaryDomain)

@@ -55,7 +55,7 @@ export interface StatusStep {
  * returns, and the same row updates inline (no second row beneath). */
 export type TimelineItem =
   | { kind: 'text'; text: string }
-  | { kind: 'search'; query: string; count?: number; documents?: SelectedDocument[] }
+  | { kind: 'search'; query: string; narration?: string; count?: number; documents?: SelectedDocument[] }
 
 /** A user or assistant message rendered inside the chat panel. */
 export interface Message {
