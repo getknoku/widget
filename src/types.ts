@@ -38,6 +38,7 @@ export interface SelectedDocument {
   doc_id: string
   path: string
   title: string
+  url_path?: string
 }
 
 /** Single visible step in the assistant's tool-use status strip.
@@ -119,7 +120,13 @@ export interface WidgetConfig {
   launcherAlign: 'bottom-right' | 'bottom-left'
   launcherHidden: boolean
   launcherIcon: string
-  layout: 'overlay' | 'push'
+  /** `pill` (default): compact chip. `card`: legacy two-line launcher with arrow. */
+  launcherStyle: 'pill' | 'card'
+  /** Icon placement in the pill launcher, or mark position in the card launcher. */
+  launcherIconPosition: 'left' | 'right'
+  /** When false, pill launcher renders label only (no mark). Card launcher always shows its mark. */
+  launcherShowIcon: boolean
+  layout: 'overlay' | 'push' | 'modal'
   suggestedQuestions: SuggestedQuestionConfig[]
   brandingRequired: boolean
   /**
@@ -149,6 +156,17 @@ export interface WidgetConfig {
   language: string
   consent: ConsentConfig
   componentStyles: Record<string, Record<string, string>>
+  /** When true, panel fills the host viewport (dashboard live preview iframe). */
+  preview?: boolean
+  /** Dashboard builder: which surface to show (launcher closed vs panel vs consent). */
+  previewSurface?: 'launcher' | 'panel' | 'consent'
+  /** `chat` (default) or `deflector` support-form intercept mode. */
+  mode: 'chat' | 'deflector'
+  /** Business-tier support form deflector from remote config. */
+  deflectorEnabled: boolean
+  formSelector: string
+  subjectSelector: string
+  bodySelector: string
 }
 
 /**
@@ -175,14 +193,34 @@ export interface KnokuWidgetInitOptions {
    * Unknown names fall back to the default.
    */
   launcherIcon?: string
-  /** `overlay` (default): panel açıldığında sayfa içeriği itilmez, panel üstüne biner. `push`: body'ye sağ kenardan margin verilir, sanki panel sayfaya gömülmüş gibi durur. */
-  layout?: 'overlay' | 'push'
+  /** `pill` (default) or `card` (legacy two-line launcher). */
+  launcherStyle?: 'pill' | 'card'
+  /** `left` or `right` — icon relative to launcher label. Default `right` for pill. */
+  launcherIconPosition?: 'left' | 'right'
+  /** Pill launcher only: set `false` to hide the mark (text-only chip). Default `true`. */
+  launcherShowIcon?: boolean
+  /** `overlay`: side panel. `push`: body margin. `modal` (default): centered dialog. */
+  layout?: 'overlay' | 'push' | 'modal'
   openSelector?: string
   suggestedQuestions?: SuggestedQuestion[]
   language?: string
   consent?: Partial<ConsentConfig>
   componentStyles?: Record<string, Record<string, string>>
   hostId?: string
+  /** Dashboard preview: project's canonical docs host for source links. */
+  primaryDomain?: string
+  preview?: boolean
+  previewSurface?: 'launcher' | 'panel' | 'consent'
+  /**
+   * `chat` (default): floating launcher widget. `deflector`: intercepts a
+   * support form submit and opens an inline docs search first.
+   */
+  mode?: 'chat' | 'deflector'
+  /** CSS selector for the support form (required when mode=deflector). */
+  formSelector?: string
+  /** Optional field selectors within the form for subject and body text. */
+  subjectSelector?: string
+  bodySelector?: string
 }
 
 /**
@@ -202,6 +240,8 @@ export interface KnokuWidgetRuntime {
   toggle: () => void
   ask: (question: string) => void
   identify: (user: WidgetUserIdentity | null) => void
+  /** Tear down the widget host, listeners, and page scroll lock. */
+  destroy: () => void
 }
 
 declare global {

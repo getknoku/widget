@@ -5,24 +5,47 @@
  */
 
 import type { ConsentConfig } from '../types'
+import { consentAcceptButtonColors } from '../theme'
 
 interface Props {
   consent: ConsentConfig
+  primaryColorLight: string
+  primaryColorDark: string
+  isDarkTheme: boolean
   onAccept: () => void
   onReject: () => void
   onClose: () => void
 }
 
-export function ConsentScreen({ consent, onAccept, onReject, onClose }: Props) {
+export function ConsentScreen({
+  consent,
+  primaryColorLight,
+  primaryColorDark,
+  isDarkTheme,
+  onAccept,
+  onReject,
+  onClose,
+}: Props) {
+  const acceptColors = consentAcceptButtonColors(
+    primaryColorLight,
+    primaryColorDark,
+    isDarkTheme,
+  )
   return (
-    <div class="knoku-consent">
-      <button type="button" class="knoku-consent-close" onClick={onClose} aria-label="Close">
+    <>
+      <button
+        type="button"
+        class="knoku-panel-close"
+        onClick={onClose}
+        aria-label="Close"
+      >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
-      <div class="knoku-consent-card">
+      <div class="knoku-consent">
+        <div class="knoku-consent-card">
         <h2 class="knoku-consent-title">{consent.title}</h2>
         <div
           class="knoku-consent-disclaimer"
@@ -32,7 +55,11 @@ export function ConsentScreen({ consent, onAccept, onReject, onClose }: Props) {
           <button
             type="button"
             class="knoku-consent-accept"
-            style={{ backgroundColor: 'var(--knoku-primary-accent)' }}
+            style={{
+              backgroundColor: acceptColors.bg,
+              color: acceptColors.fg,
+              borderColor: acceptColors.border,
+            }}
             onClick={onAccept}
           >
             {consent.acceptText}
@@ -42,7 +69,8 @@ export function ConsentScreen({ consent, onAccept, onReject, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

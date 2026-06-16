@@ -10,6 +10,7 @@ import type { UIStrings } from '../i18n'
 import { useChat } from '../hooks/useChat'
 import { Message } from './Message'
 import { resolveIcon } from '../icons'
+import { reportDeflectorOutcome } from '../deflector-outcome'
 
 interface Props {
   config: WidgetConfig
@@ -19,12 +20,15 @@ interface Props {
   onQuestionSent: () => void
   panelWide?: boolean
   onToggleWide?: () => void
+  isDeflector?: boolean
+  onDeflectorResolved?: () => void
+  onDeflectorContinue?: () => void
 }
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 const MAX_SIZE = 5 * 1024 * 1024 // 5 MB cap, matches backend.
 
-export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent, panelWide, onToggleWide }: Props) {
+export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent, panelWide, onToggleWide, isDeflector, onDeflectorResolved, onDeflectorContinue }: Props) {
   const [input, setInput] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -32,25 +36,36 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
   const messagesRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  // Stays true while the user is reading at the bottom of the message list.
-  // Flips false the moment they scroll up — we then stop snapping to the
-  // bottom on every streamed-text update, which was the source of the
-  // up/down jitter when answer text, markdown links, and sources blocks
-  // all re-rendered within the same frame.
   const stickToBottomRef = useRef(true)
   const scrollRafRef = useRef<number | null>(null)
+  const lastScrollHeightRef = useRef(0)
+  const initialQuestionSentRef = useRef<string | null>(null)
   const { messages, isLoading, sessionId, sendMessage, regenerate } = useChat(config)
 
-  // Auto-submit a question handed in via Knoku.ask() — see widget.tsx handleAsk.
+  const isModal = config.layout === 'modal'
+  const isEmpty = messages.length === 0 && !isLoading
+  const exampleLabel = t.exampleQuestions || 'Example questions'
+  const hasCompleteAnswer = messages.some((m) => {
+    if (m.role !== 'assistant' || m.isStreaming) return false
+    if (m.content.trim().length > 0) return true
+    return (m.timeline || []).some(
+      (item) => item.kind === 'text' && item.text.trim().length > 0,
+    )
+  })
+  const showDeflectorActions = Boolean(isDeflector && hasCompleteAnswer && !isLoading)
+  const headerTitle = isDeflector ? (t.deflectorTitle || t.assistant) : t.assistant
+
   useEffect(() => {
-    if (!initialQuestion) return
+    if (!initialQuestion) {
+      initialQuestionSentRef.current = null
+      return
+    }
+    if (initialQuestionSentRef.current === initialQuestion) return
+    initialQuestionSentRef.current = initialQuestion
     sendMessage(initialQuestion)
     onQuestionSent()
   }, [initialQuestion, onQuestionSent, sendMessage])
 
-  // Track whether the user has scrolled away from the bottom. Threshold is
-  // generous (50px) so a few pixels of natural overshoot from streamed
-  // content doesn't flip us off auto-stick.
   useEffect(() => {
     const el = messagesRef.current
     if (!el) return
@@ -62,17 +77,17 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Stick to the bottom as new content streams in, but only when the user
-  // is already there. Coalesce multiple updates per frame into one scroll
-  // via rAF so the streaming text → markdown link → sources cascade
-  // doesn't trigger 3-4 scrolls in adjacent frames.
   useEffect(() => {
     if (!stickToBottomRef.current) return
     if (scrollRafRef.current !== null) return
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = null
       const el = messagesRef.current
-      if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight
+      if (!el || !stickToBottomRef.current) return
+      const nextHeight = el.scrollHeight
+      if (nextHeight === lastScrollHeightRef.current) return
+      lastScrollHeightRef.current = nextHeight
+      el.scrollTop = nextHeight
     })
   }, [messages])
 
@@ -109,15 +124,53 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
     if (file) handleFile(file)
   }
 
+  const panelClass = [
+    'knoku-panel',
+    isModal ? 'knoku-panel-modal' : '',
+    !isEmpty ? 'knoku-panel-in-chat' : '',
+  ].filter(Boolean).join(' ')
+
+  const messagesClass = [
+    'knoku-messages',
+    isEmpty && !isModal ? 'knoku-messages-empty' : '',
+  ].filter(Boolean).join(' ')
+
+  const modalExamples = isModal && isEmpty && config.suggestedQuestions.length > 0 ? (
+    <div class="knoku-modal-examples">
+      <p class="knoku-modal-examples-label">{exampleLabel}</p>
+      <div class="knoku-modal-example-list">
+        {config.suggestedQuestions.map((q) => (
+          <button
+            key={q.text}
+            type="button"
+            class="knoku-modal-example"
+            onClick={() => sendMessage(q.text)}
+          >
+            <svg
+              class="knoku-modal-example-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: resolveIcon(q.icon) }}
+            />
+            <span class="knoku-modal-example-text">{q.text}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null
+
   return (
-    <div class="knoku-panel">
+    <div class={panelClass}>
       <div class="knoku-header">
         <div class="knoku-header-left">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-          </svg>
-          <span>{t.assistant}</span>
+          <span>{headerTitle}</span>
         </div>
         <div class="knoku-header-actions">
           {config.mcpEnabled && config.mcpUrl && (
@@ -142,43 +195,68 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
               )}
             </button>
           )}
-          <button class="knoku-header-btn" onClick={onClose} title={t.close}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
+          {!isDeflector && (
+            <button class="knoku-header-btn" onClick={onClose} title={t.close} aria-label={t.close}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
-      <div class="knoku-messages" ref={messagesRef}>
-        {messages.length === 0 && !isLoading && config.greeting && (
-          <div class="knoku-greeting">
-            {config.greeting}
-          </div>
-        )}
-        {messages.map((msg, i) => {
-          const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1
-          const canRegen = isLastAssistant && (msg.regenerateCount || 0) < 1 && !msg.isStreaming
-          return (
-            <Message
-              key={i}
-              message={msg}
-              t={t}
-              apiUrl={config.apiUrl}
-              projectId={config.projectId}
-              primaryDomain={config.primaryDomain}
-              turnstileSiteKey={config.turnstileSiteKey}
-              sessionId={sessionId}
-              messageIndex={i}
-              isLastAssistant={isLastAssistant}
-              onRegenerate={regenerate}
-              canRegenerate={canRegen}
-            />
-          )
-        })}
-      </div>
+      {isModal && isEmpty && !isDeflector ? (
+        <div class="knoku-modal-body">
+          {config.greeting && (
+            <div class="knoku-modal-intro">
+              <span class="knoku-modal-intro-icon" aria-hidden="true">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  dangerouslySetInnerHTML={{ __html: resolveIcon(config.launcherIcon || 'book-open') }}
+                />
+              </span>
+              <p class="knoku-modal-intro-text">{config.greeting}</p>
+            </div>
+          )}
+          {modalExamples}
+        </div>
+      ) : (
+        <div class={messagesClass} ref={messagesRef}>
+          {!isModal && isEmpty && config.greeting && (
+            <div class="knoku-greeting">{config.greeting}</div>
+          )}
 
-      {messages.length === 0 && !isLoading && config.suggestedQuestions?.length > 0 && (
+          {messages.map((msg, i) => {
+            const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1
+            const canRegen = isLastAssistant && (msg.regenerateCount || 0) < 1 && !msg.isStreaming
+            return (
+              <Message
+                key={i}
+                message={msg}
+                t={t}
+                apiUrl={config.apiUrl}
+                projectId={config.projectId}
+                primaryDomain={config.primaryDomain}
+                turnstileSiteKey={config.turnstileSiteKey}
+                sessionId={sessionId}
+                messageIndex={i}
+                isLastAssistant={isLastAssistant}
+                onRegenerate={regenerate}
+                canRegenerate={canRegen}
+              />
+            )
+          })}
+        </div>
+      )}
+
+      {!isModal && isEmpty && config.suggestedQuestions?.length > 0 && (
         <div class="knoku-suggestions">
           {config.suggestedQuestions.map((q) => (
             <button
@@ -204,12 +282,38 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
         </div>
       )}
 
-      {messages.length === 0 && !isLoading && (
+      {!isModal && isEmpty && (
         <div class="knoku-disclaimer">{t.aiDisclaimer}</div>
       )}
 
+      {showDeflectorActions && (
+        <div class="knoku-deflector-actions">
+          <button
+            type="button"
+            class="knoku-deflector-btn knoku-deflector-btn-primary"
+            onClick={() => {
+              reportDeflectorOutcome(config, sessionId, 'resolved')
+              onDeflectorResolved?.()
+            }}
+          >
+            {t.deflectorResolved || 'This answered my question'}
+          </button>
+          <button
+            type="button"
+            class="knoku-deflector-btn knoku-deflector-btn-secondary"
+            onClick={() => {
+              reportDeflectorOutcome(config, sessionId, 'continued')
+              onDeflectorContinue?.()
+            }}
+          >
+            {t.deflectorContinue || 'Continue to support'}
+          </button>
+        </div>
+      )}
+
+      {(isDeflector || !showDeflectorActions) && (
       <form
-        class="knoku-input-area"
+        class={`knoku-input-area${isModal ? ' knoku-input-area-modal' : ''}${isDeflector ? ' knoku-input-area-deflector' : ''}`}
         onSubmit={handleSubmit}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
@@ -227,7 +331,20 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
             class="knoku-textarea"
             placeholder={t.askPlaceholder}
             value={input}
+            enterkeyhint="send"
+            autocomplete="off"
+            autocorrect="off"
             onInput={(e) => setInput((e.target as HTMLTextAreaElement).value)}
+            onFocus={() => {
+              if (!stickToBottomRef.current) return
+              requestAnimationFrame(() => {
+                const el = messagesRef.current
+                if (el && stickToBottomRef.current) {
+                  lastScrollHeightRef.current = el.scrollHeight
+                  el.scrollTop = el.scrollHeight
+                }
+              })
+            }}
             onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e) } }}
             onKeyUp={(e) => e.stopPropagation()}
             onKeyPress={(e) => e.stopPropagation()}
@@ -262,24 +379,19 @@ export function ChatWindow({ config, t, initialQuestion, onClose, onQuestionSent
             </button>
           </div>
         </div>
-        {config.brandingRequired && (
+        {config.brandingRequired ? (
           <div class="knoku-branding">
             <span>Powered by</span>
             <a href="https://knoku.com" target="_blank" rel="noopener noreferrer">Knoku</a>
           </div>
-        )}
+        ) : null}
       </form>
+      )}
     </div>
   )
 }
 
 // --- MCP popover ---
-//
-// Surfaces the "Use MCP" entry point only when the project has it enabled.
-// The button stays in the chat header so it shows up next to the close
-// button without crowding the message area. Popover is positioned absolutely
-// inside the panel; closing on outside-click is handled with a transparent
-// backdrop layer that captures the next pointer event.
 
 interface McpButtonProps {
   mcpUrl: string
@@ -308,8 +420,7 @@ function McpButton({ mcpUrl }: McpButtonProps) {
       setCopied(label)
       setTimeout(() => setCopied((current) => (current === label ? null : current)), 1500)
     } catch {
-      // Some browsers block clipboard inside an iframe / non-secure context.
-      // Fail silently — the user can manually copy from the visible URL.
+      // Clipboard may be blocked inside iframes.
     }
   }
 

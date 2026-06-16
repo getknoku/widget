@@ -28,7 +28,10 @@ function parseScriptAttributes(script: HTMLScriptElement): Partial<KnokuWidgetIn
   const launcherAlign = readEnum(script, 'launcher-align', ['bottom-right', 'bottom-left'] as const)
   const launcherHidden = readBoolean(script, 'launcher-hidden')
   const launcherIcon = readString(script, 'launcher-icon')
-  const layout = readEnum(script, 'layout', ['overlay', 'push'] as const)
+  const launcherStyle = readEnum(script, 'launcher-style', ['pill', 'card'] as const)
+  const launcherIconPosition = readEnum(script, 'launcher-icon-position', ['left', 'right'] as const)
+  const launcherShowIcon = readBoolean(script, 'launcher-show-icon')
+  const layout = readEnum(script, 'layout', ['overlay', 'push', 'modal'] as const)
   const openSelector = readString(script, 'open-selector')
   const suggestedQuestions = readSuggestedQuestions(script)
   const language = readLanguage(script)
@@ -37,6 +40,10 @@ function parseScriptAttributes(script: HTMLScriptElement): Partial<KnokuWidgetIn
   const consentDisclaimer = readString(script, 'consent-disclaimer')
   const consentAcceptText = readString(script, 'consent-accept-text')
   const consentRejectText = readString(script, 'consent-reject-text')
+  const mode = readEnum(script, 'mode', ['chat', 'deflector'] as const)
+  const formSelector = readString(script, 'form-selector')
+  const subjectSelector = readString(script, 'subject-selector')
+  const bodySelector = readString(script, 'body-selector')
 
   if (projectId) options.projectId = projectId
   if (theme) options.theme = theme
@@ -49,6 +56,9 @@ function parseScriptAttributes(script: HTMLScriptElement): Partial<KnokuWidgetIn
   if (launcherAlign) options.launcherAlign = launcherAlign
   if (typeof launcherHidden === 'boolean') options.launcherHidden = launcherHidden
   if (launcherIcon) options.launcherIcon = launcherIcon
+  if (launcherStyle) options.launcherStyle = launcherStyle
+  if (launcherIconPosition) options.launcherIconPosition = launcherIconPosition
+  if (typeof launcherShowIcon === 'boolean') options.launcherShowIcon = launcherShowIcon
   if (layout) options.layout = layout
   if (openSelector) options.openSelector = openSelector
   if (suggestedQuestions) options.suggestedQuestions = suggestedQuestions
@@ -60,6 +70,10 @@ function parseScriptAttributes(script: HTMLScriptElement): Partial<KnokuWidgetIn
   if (consentAcceptText) consent.acceptText = consentAcceptText
   if (consentRejectText) consent.rejectText = consentRejectText
   if (Object.keys(consent).length > 0) options.consent = consent
+  if (mode) options.mode = mode
+  if (formSelector) options.formSelector = formSelector
+  if (subjectSelector) options.subjectSelector = subjectSelector
+  if (bodySelector) options.bodySelector = bodySelector
 
   const componentStyles = parseComponentStyleAttributes(script)
   if (Object.keys(componentStyles).length > 0) options.componentStyles = componentStyles

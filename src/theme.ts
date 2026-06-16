@@ -9,6 +9,40 @@
 
 export type ThemeMode = 'light' | 'dark'
 
+/** Relative luminance (0–1) for #RRGGBB hex. */
+function hexLuminance(hex: string): number {
+  const h = hex.replace(/^#/, '')
+  if (h.length !== 6 && h.length !== 3) return 0.2
+  const expand = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const channels = [0, 2, 4].map((i) => {
+    const v = parseInt(expand.slice(i, i + 2), 16) / 255
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+}
+
+/** Text color that contrasts with a primary/accent background. */
+export function contrastingTextOnAccent(hex: string): string {
+  return hexLuminance(hex) > 0.55 ? '#0a0a0a' : '#ffffff'
+}
+
+const CONSENT_ACCEPT_FALLBACK = { bg: '#171717', fg: '#ffffff', border: '#171717' }
+
+/** Filled accept button colors — never returns a near-white fill (invisible on consent bg). */
+export function consentAcceptButtonColors(
+  primaryColorLight: string,
+  primaryColorDark: string,
+  isDark: boolean,
+): { bg: string; fg: string; border: string } {
+  const accent = (isDark ? primaryColorDark : primaryColorLight).trim() || CONSENT_ACCEPT_FALLBACK.bg
+  if (hexLuminance(accent) > 0.55) return CONSENT_ACCEPT_FALLBACK
+  return {
+    bg: accent,
+    fg: contrastingTextOnAccent(accent),
+    border: accent,
+  }
+}
+
 /** Resolve the host page's current theme. */
 export function detectHostTheme(): ThemeMode {
   // VitePress, Nextra, Mintlify, Tailwind class-based dark mode.

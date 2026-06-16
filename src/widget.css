@@ -9,6 +9,7 @@
    separate accent reserved for marketing surfaces.
    Every value below is overridable via the slot system. */
 .knoku-root {
+  touch-action: manipulation;
   --bg: #ffffff;
   --bg-secondary: #fafafa;
   --bg-tertiary: #f5f5f5;
@@ -62,20 +63,82 @@
   --shadow: rgba(0, 0, 0, 0.4);
 }
 
-/* ===== Bottom Bar ===== */
+/* ===== Scrollbars (Shadow DOM — host page styles do not apply) ===== */
+.knoku-root,
+.knoku-root * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 42%, transparent) transparent;
+}
+.knoku-root *::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.knoku-root *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.knoku-root *::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--text-muted) 50%, transparent);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+.knoku-root *::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--text-muted) 68%, transparent);
+}
+
+/* ===== Launcher ===== */
 .knoku-bar {
-  position: fixed; bottom: 22px;
+  position: fixed; bottom: 24px;
   width: auto;
-  max-width: min(310px, calc(100vw - 32px));
   z-index: 99998;
 }
-.knoku-bar-bottom-right { right: 22px; }
-.knoku-bar-bottom-left { left: 22px; }
+.knoku-bar-bottom-right { right: 24px; }
+.knoku-bar-bottom-left { left: 24px; }
 .knoku-bar-trigger {
   border: none; background: transparent; padding: 0;
   font: inherit; text-align: left; cursor: pointer;
 }
-.knoku-bar-inner {
+.knoku-bar-trigger:focus-visible { outline: 2px solid var(--knoku-primary-accent); outline-offset: 3px; }
+
+/* Pill launcher (default) — compact chip like Ask Docs */
+.knoku-bar-pill {
+  max-width: calc(100vw - 32px);
+}
+.knoku-bar-pill-inner {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px var(--shadow), 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.knoku-bar-pill[data-knoku-launcher-icon-position="left"] .knoku-bar-pill-inner {
+  flex-direction: row;
+}
+.knoku-bar-pill[data-knoku-launcher-icon-position="right"] .knoku-bar-pill-inner {
+  flex-direction: row;
+}
+.knoku-bar-pill-label {
+  font-size: 14px; font-weight: 600; letter-spacing: -0.01em;
+  line-height: 1; white-space: nowrap;
+}
+.knoku-bar-pill-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: 0.95;
+}
+.knoku-bar-pill-icon svg { width: 16px; height: 16px; }
+.knoku-bar-pill-trigger:hover .knoku-bar-pill-inner,
+.knoku-bar-pill.knoku-bar-trigger:hover .knoku-bar-pill-inner,
+.knoku-bar-pill.knoku-bar-trigger:focus-visible .knoku-bar-pill-inner {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px var(--shadow), 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Card launcher (legacy) — two-line row with arrow */
+.knoku-bar-card {
+  max-width: min(310px, calc(100vw - 32px));
+}
+.knoku-bar-card .knoku-bar-inner {
   display: flex; align-items: center;
   min-width: 200px; max-width: 320px; height: 62px;
   border: 1px solid var(--border);
@@ -86,12 +149,12 @@
   transition: border-color 0.15s, box-shadow 0.15s;
   width: 100%;
 }
-.knoku-bar-trigger:hover .knoku-bar-inner,
-.knoku-bar-trigger:focus-visible .knoku-bar-inner {
+.knoku-bar-card.knoku-bar-trigger:hover .knoku-bar-inner,
+.knoku-bar-card.knoku-bar-trigger:focus-visible .knoku-bar-inner {
   border-color: color-mix(in srgb, var(--knoku-primary-accent) 55%, var(--border));
   box-shadow: 0 6px 20px var(--shadow), 0 2px 4px rgba(0, 0, 0, 0.05);
 }
-.knoku-bar-mark {
+.knoku-bar-card .knoku-bar-mark {
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -99,13 +162,16 @@
   background-color: transparent;
   transition: color 0.15s;
 }
-.knoku-bar-mark svg { width: 20px; height: 20px; }
-.knoku-bar-trigger:hover .knoku-bar-mark { color: var(--knoku-primary-accent); }
-.knoku-bar-copy {
+.knoku-bar-card .knoku-bar-mark svg { width: 20px; height: 20px; }
+.knoku-bar-card.knoku-bar-trigger:hover .knoku-bar-mark { color: var(--knoku-primary-accent); }
+.knoku-bar-card .knoku-bar-copy {
   min-width: 0; flex: 1; display: flex; flex-direction: column;
   justify-content: center; gap: 3px; padding: 0 8px 0 10px;
 }
-.knoku-bar-input {
+.knoku-bar-card[data-knoku-launcher-icon-position="right"] .knoku-bar-copy {
+  padding: 0 10px 0 8px;
+}
+.knoku-bar-card .knoku-bar-input {
   border: none; outline: none;
   font-size: 14px; font-weight: 600; letter-spacing: 0; font-family: inherit;
   background: transparent; padding: 0;
@@ -113,42 +179,49 @@
   user-select: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.knoku-bar-subtitle {
+.knoku-bar-card .knoku-bar-subtitle {
   color: var(--text-secondary); font-size: 12px; font-weight: 600; line-height: 1.2;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.knoku-bar-send {
+.knoku-bar-card .knoku-bar-send {
   width: 30px; height: 30px; border-radius: 6px;
   border: 1px solid var(--border);
   background-color: transparent;
-  color: var(--text-secondary); cursor: pointer;
+  color: var(--text-secondary);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; pointer-events: none;
-  box-shadow: none;
-  transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
 }
-.knoku-bar-send svg { width: 14px; height: 14px; }
-.knoku-bar-trigger:hover .knoku-bar-send {
+.knoku-bar-card .knoku-bar-send svg { width: 14px; height: 14px; }
+.knoku-bar-card.knoku-bar-trigger:hover .knoku-bar-send {
   border-color: color-mix(in srgb, var(--knoku-primary-accent) 55%, var(--border));
   color: var(--knoku-primary-accent);
 }
-.knoku-bar-send:disabled { opacity: 0.5; cursor: default; }
+
 @media (max-width: 640px) {
   .knoku-bar {
-    right: 12px; left: auto; bottom: 12px;
-    max-width: calc(100vw - 24px);
+    right: 12px; left: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
   }
   .knoku-bar-bottom-left { left: 12px; right: auto; }
-  .knoku-bar-inner { min-width: 210px; height: 52px; }
-  .knoku-bar-mark { width: 22px; height: 22px; }
-  .knoku-bar-mark svg { width: 16px; height: 16px; }
-  .knoku-bar-send { width: 22px; height: 22px; }
-  .knoku-bar-send svg { width: 12px; height: 12px; }
+  .knoku-bar-pill { max-width: calc(100vw - 24px); }
+  .knoku-bar-pill-inner { min-height: 38px; padding: 0 14px; }
+  .knoku-bar-card { max-width: calc(100vw - 24px); }
+  .knoku-bar-card .knoku-bar-inner { min-width: 210px; height: 52px; }
+  .knoku-bar-card .knoku-bar-mark { width: 22px; height: 22px; }
+  .knoku-bar-card .knoku-bar-mark svg { width: 16px; height: 16px; }
+  .knoku-bar-card .knoku-bar-send { width: 22px; height: 22px; }
+  .knoku-bar-card .knoku-bar-send svg { width: 12px; height: 12px; }
 }
 
-/* ===== Side Panel ===== */
-.knoku-panel {
-  position: fixed; top: 0; right: 0; width: 380px; height: 100vh;
+/* ===== Panel shell (overlay / push / modal) ===== */
+.knoku-shell[data-knoku-layout="overlay"] .knoku-panel,
+.knoku-shell[data-knoku-layout="push"] .knoku-panel,
+.knoku-shell:not([data-knoku-layout]) .knoku-panel {
+  position: fixed; top: 0; right: 0; width: 380px;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   background: var(--bg); border-left: 1px solid var(--border);
   display: flex; flex-direction: column; z-index: 99999;
   transform: translateX(100%);
@@ -159,18 +232,182 @@
               width 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
               background 0.15s;
 }
-[data-knoku-panel-open="true"] .knoku-panel {
+.knoku-shell[data-knoku-layout="overlay"][data-knoku-panel-open="true"] .knoku-panel,
+.knoku-shell[data-knoku-layout="push"][data-knoku-panel-open="true"] .knoku-panel,
+.knoku-shell:not([data-knoku-layout])[data-knoku-panel-open="true"] .knoku-panel {
   transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
 }
-[data-knoku-panel-wide="true"] .knoku-panel {
+.knoku-shell[data-knoku-layout="overlay"][data-knoku-panel-wide="true"] .knoku-panel,
+.knoku-shell[data-knoku-layout="push"][data-knoku-panel-wide="true"] .knoku-panel,
+.knoku-shell:not([data-knoku-layout])[data-knoku-panel-wide="true"] .knoku-panel {
   width: 560px;
 }
-@media (max-width: 640px) { .knoku-panel, [data-knoku-panel-wide="true"] .knoku-panel { width: 100%; } }
+/* Mobile: full-screen sheet — all layouts share one open-state geometry. */
+@media (max-width: 640px) {
+  .knoku-shell[data-knoku-panel-open="true"] {
+    position: fixed;
+    top: var(--knoku-vv-top, 0px);
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: var(--knoku-vv-height, 100dvh);
+    max-height: var(--knoku-vv-height, 100dvh);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
+    z-index: 99999;
+    opacity: 1;
+    pointer-events: auto;
+  }
 
-/* Entrance fade for new chat entries — message bubbles + status blocks. */
-.knoku-msg-user, .knoku-msg-assistant, .knoku-status-block {
+  .knoku-shell[data-knoku-panel-open="true"] .knoku-panel,
+  .knoku-shell[data-knoku-panel-open="true"][data-knoku-panel-wide="true"] .knoku-panel {
+    position: absolute;
+    inset: 0;
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none !important;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .knoku-shell[data-knoku-layout="modal"][data-knoku-panel-open="true"] {
+    align-items: center;
+    justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+
+  .knoku-shell[data-knoku-layout="modal"][data-knoku-panel-open="true"] .knoku-panel.knoku-panel-consent {
+    position: relative;
+    inset: auto;
+    width: min(380px, calc(100vw - 32px)) !important;
+    height: auto !important;
+    max-height: none !important;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.04),
+      0 24px 48px rgba(0, 0, 0, 0.18),
+      0 8px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  .knoku-shell[data-knoku-layout="overlay"][data-knoku-panel-open="false"] .knoku-panel,
+  .knoku-shell[data-knoku-layout="push"][data-knoku-panel-open="false"] .knoku-panel,
+  .knoku-shell:not([data-knoku-layout])[data-knoku-panel-open="false"] .knoku-panel {
+    width: 100%;
+    transform: translateX(100%);
+  }
+
+  .knoku-shell[data-knoku-layout="modal"][data-knoku-panel-open="false"] .knoku-panel {
+    width: 100%;
+    height: 100%;
+    transform: translateY(100%);
+  }
+
+  .knoku-header {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+
+  .knoku-header-actions .knoku-header-btn:first-child {
+    display: none;
+  }
+
+  .knoku-shell[data-knoku-layout="modal"][data-knoku-panel-open="true"] .knoku-backdrop {
+    display: none;
+  }
+
+  .knoku-textarea {
+    font-size: 16px;
+  }
+
+  .knoku-input-area {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+}
+
+/* Modal — centered dialog with dimmed backdrop */
+.knoku-shell[data-knoku-layout="modal"] {
+  position: fixed; inset: 0; z-index: 99999;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+           max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease-out;
+}
+.knoku-shell[data-knoku-layout="modal"][data-knoku-panel-open="true"] {
+  pointer-events: auto;
+  opacity: 1;
+}
+.knoku-shell[data-knoku-layout="modal"] .knoku-backdrop {
+  position: absolute; inset: 0;
+  border: none; padding: 0; margin: 0;
+  background: rgba(0, 0, 0, 0.48);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 220ms ease-out;
+}
+.knoku-root.knoku-dark .knoku-shell[data-knoku-layout="modal"] .knoku-backdrop {
+  background: rgba(0, 0, 0, 0.62);
+}
+.knoku-shell[data-knoku-layout="modal"][data-knoku-panel-open="true"] .knoku-backdrop {
+  opacity: 1;
+}
+.knoku-shell[data-knoku-layout="modal"] .knoku-panel {
+  position: relative;
+  top: auto; right: auto; left: auto; bottom: auto;
+  width: min(640px, calc(100vw - 32px));
+  height: auto;
+  max-height: min(560px, calc(100dvh - 48px));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 24px 48px rgba(0, 0, 0, 0.18),
+    0 8px 16px rgba(0, 0, 0, 0.08);
+  z-index: 1;
+  transform: scale(0.97) translateY(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity 220ms ease-out;
+}
+.knoku-shell[data-knoku-layout="modal"][data-knoku-panel-open="true"] .knoku-panel {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.knoku-shell[data-knoku-layout="modal"][data-knoku-panel-wide="true"] .knoku-panel {
+  width: min(720px, calc(100vw - 32px));
+}
+/* Shared panel chrome (all layouts) */
+.knoku-panel {
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Entrance fade — skip while streaming to avoid scroll jitter. */
+.knoku-msg-user, .knoku-msg-assistant:not(.knoku-msg-streaming), .knoku-status-block {
   animation: knoku-fade-in 180ms ease-out;
 }
 @keyframes knoku-fade-in {
@@ -180,14 +417,86 @@
 
 /* ===== Header ===== */
 .knoku-header {
-  padding: 14px 14px; display: flex; align-items: center;
+  padding: 14px 16px; display: flex; align-items: center;
   justify-content: space-between; flex-shrink: 0;
 }
 .knoku-header-left {
-  display: flex; align-items: center; gap: 9px;
-  font-weight: 650; font-size: 15px; letter-spacing: 0;
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 650; font-size: 15px; letter-spacing: -0.01em;
 }
-.knoku-header-left svg { color: var(--primary); }
+/* Dashboard builder preview: shadow host fills iframe so fixed launcher/panel layout works. */
+.knoku-root.knoku-preview-mode {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  pointer-events: none;
+}
+.knoku-root.knoku-preview-mode .knoku-bar,
+.knoku-root.knoku-preview-mode .knoku-panel,
+.knoku-root.knoku-preview-mode .knoku-shell,
+.knoku-root.knoku-preview-mode [data-knoku-panel-open] {
+  pointer-events: auto;
+}
+[data-knoku-preview="true"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+/* Dashboard preview: full-bleed panel for overlay/push (modal keeps centered dialog). */
+[data-knoku-preview="true"][data-knoku-panel-open="true"]:not([data-knoku-layout="modal"]) {
+  padding: 0;
+}
+[data-knoku-preview="true"][data-knoku-panel-open="true"]:not([data-knoku-layout="modal"]) .knoku-backdrop {
+  display: none;
+}
+[data-knoku-preview="true"][data-knoku-panel-open="true"]:not([data-knoku-layout="modal"]) .knoku-panel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+[data-knoku-preview="true"][data-knoku-panel-open="true"]:not([data-knoku-layout="modal"])[data-knoku-panel-wide="true"] .knoku-panel {
+  width: 100%;
+  height: 100%;
+}
+/* Modal preview: real centered dialog + dimmed backdrop inside the iframe. */
+[data-knoku-preview="true"][data-knoku-layout="modal"][data-knoku-panel-open="true"] .knoku-backdrop {
+  display: block;
+}
+[data-knoku-preview="true"][data-knoku-layout="modal"][data-knoku-panel-open="true"] .knoku-panel {
+  position: relative;
+  inset: auto;
+  width: min(640px, calc(100% - 32px));
+  height: auto;
+  max-height: min(560px, calc(100% - 32px));
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 24px 48px rgba(0, 0, 0, 0.18),
+    0 8px 16px rgba(0, 0, 0, 0.08);
+}
+[data-knoku-preview="true"][data-knoku-layout="modal"][data-knoku-panel-open="true"] .knoku-panel.knoku-panel-in-chat {
+  height: min(560px, calc(100% - 32px));
+  min-height: min(560px, calc(100% - 32px));
+}
+.knoku-header-left svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
 .knoku-header-actions { display: flex; gap: 2px; }
 .knoku-header-btn {
   width: 32px; height: 32px; border: none; background: none;
@@ -204,10 +513,10 @@
 .knoku-mcp-wrap { position: relative; display: flex; align-items: center; --knoku-mcp-fg: #171717; --knoku-mcp-muted: #6b7280; --knoku-mcp-bg: #ffffff; --knoku-mcp-hover: #f5f5f5; --knoku-mcp-tile: #f3f4f6; --knoku-mcp-border: #e5e5e5; }
 .knoku-root.knoku-dark .knoku-mcp-wrap { --knoku-mcp-fg: #e5e5e5; --knoku-mcp-muted: #9ca3af; --knoku-mcp-bg: #0a0a0a; --knoku-mcp-hover: #1f1f1f; --knoku-mcp-tile: #262626; --knoku-mcp-border: #262626; }
 .knoku-mcp-trigger {
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 30px; padding: 0 10px; margin-right: 4px;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 31px; padding: 0 11px; margin-right: 4px;
   background: transparent; border: 1px solid var(--knoku-mcp-border);
-  border-radius: 6px; font-size: 12px; font-weight: 500;
+  border-radius: 7px; font-size: 12px; font-weight: 500;
   color: var(--knoku-mcp-muted); cursor: pointer;
   transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
@@ -218,39 +527,41 @@
   background: transparent;
 }
 .knoku-mcp-popover {
-  position: absolute; top: calc(100% + 4px); right: 0;
-  width: 264px; padding: 4px;
+  position: absolute; top: calc(100% + 5px); right: 0;
+  width: 278px; padding: 6px;
   background: var(--knoku-mcp-bg); border: 1px solid var(--knoku-mcp-border);
-  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.13);
   z-index: 2147483647;
 }
-.knoku-mcp-head { padding: 6px 8px 8px; border-bottom: 1px solid var(--knoku-mcp-border); margin-bottom: 4px; }
-.knoku-mcp-title { margin: 0; font-size: 12px; font-weight: 600; color: var(--knoku-mcp-fg); }
-.knoku-mcp-sub { margin: 1px 0 0; font-size: 10.5px; color: var(--knoku-mcp-muted); }
+.knoku-mcp-head { padding: 8px 10px 10px; border-bottom: 1px solid var(--knoku-mcp-border); margin-bottom: 4px; }
+.knoku-mcp-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--knoku-mcp-fg); }
+.knoku-mcp-sub { margin: 1px 0 0; font-size: 11px; color: var(--knoku-mcp-muted); }
 .knoku-mcp-row {
-  display: flex; align-items: center; gap: 8px;
-  width: 100%; padding: 6px 8px; border-radius: 6px;
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 8px 10px; border-radius: 7px;
   background: transparent; border: none; text-align: left;
   color: var(--knoku-mcp-fg); text-decoration: none; cursor: pointer;
   font: inherit;
 }
 .knoku-mcp-row:hover { background: var(--knoku-mcp-hover); }
 .knoku-mcp-row-icon {
-  width: 24px; height: 24px; flex-shrink: 0;
+  width: 28px; height: 28px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 5px; background: var(--knoku-mcp-tile); color: var(--knoku-mcp-muted);
+  border-radius: 6px; background: var(--knoku-mcp-tile); color: var(--knoku-mcp-muted);
 }
-.knoku-mcp-row-icon svg { width: 13px; height: 13px; }
-.knoku-mcp-row-body { flex: 1; display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.knoku-mcp-row-title { font-size: 12px; font-weight: 500; color: var(--knoku-mcp-fg); line-height: 1.3; }
-.knoku-mcp-row-meta { font-size: 10.5px; color: var(--knoku-mcp-muted); line-height: 1.3; }
+.knoku-mcp-row-icon svg { width: 14px; height: 14px; }
+.knoku-mcp-row-body { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.knoku-mcp-row-title { font-size: 13px; font-weight: 500; color: var(--knoku-mcp-fg); line-height: 1.32; }
+.knoku-mcp-row-meta { font-size: 11px; color: var(--knoku-mcp-muted); line-height: 1.32; }
 .knoku-mcp-row-external { color: var(--knoku-mcp-muted); flex-shrink: 0; }
 .knoku-mcp-row-btn { font-family: inherit; }
 
 /* ===== Messages ===== */
 .knoku-messages {
-  flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 16px;
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 20px 16px;
   display: flex; flex-direction: column; gap: 16px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .knoku-greeting {
   text-align: center; color: var(--text-placeholder); padding: 72px 20px 20px; font-size: 16px;
@@ -277,10 +588,122 @@
   opacity: 0.7;
 }
 .knoku-disclaimer {
-  padding: 4px 22px 10px;
+  padding: 4px 16px 10px;
   font-size: 12px; line-height: 1.4;
   color: var(--text-muted); opacity: 0.85;
   flex-shrink: 0;
+}
+
+/* ===== Modal empty state ===== */
+.knoku-panel-modal:not(.knoku-panel-in-chat) {
+  min-height: min(480px, calc(100dvh - 48px));
+}
+.knoku-panel-modal .knoku-header {
+  border-bottom: 1px solid var(--border-light);
+  padding: 14px 18px;
+  flex-shrink: 0;
+}
+.knoku-panel-modal .knoku-header-left {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+}
+.knoku-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.knoku-modal-intro {
+  display: flex; align-items: flex-start; gap: 14px;
+}
+.knoku-modal-intro-icon {
+  flex-shrink: 0; width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); margin-top: 2px;
+}
+.knoku-modal-intro-text {
+  font-size: 15px; line-height: 1.55; color: var(--text);
+  margin: 0;
+}
+.knoku-modal-examples-label {
+  margin: 0 0 10px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.knoku-modal-example-list {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.knoku-modal-example {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px 14px;
+  font-size: 14px; line-height: 1.4;
+  font-family: inherit; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.knoku-modal-example-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+.knoku-modal-example-text {
+  flex: 1; min-width: 0;
+}
+.knoku-modal-example:hover {
+  background: var(--bg-hover);
+  border-color: color-mix(in srgb, var(--knoku-primary-accent) 35%, var(--border));
+}
+.knoku-input-area-modal {
+  flex-shrink: 0;
+  padding: 16px 20px 18px;
+  border-top: 1px solid var(--border-light);
+  margin-top: auto;
+  background: var(--bg);
+}
+.knoku-input-area-modal .knoku-input-box {
+  min-height: 52px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: none;
+}
+.knoku-input-area-modal .knoku-textarea {
+  min-height: 22px;
+}
+.knoku-input-area-modal .knoku-input-actions {
+  margin-top: 12px;
+}
+.knoku-input-area-modal .knoku-branding {
+  margin-top: 12px;
+  padding: 0 4px 0 0;
+  font-size: 12px;
+  gap: 5px;
+  color: var(--text-muted);
+}
+.knoku-input-area-modal .knoku-branding a {
+  color: var(--text);
+  font-weight: 650;
+}
+.knoku-panel-modal.knoku-panel-in-chat {
+  /* Lock size once chat starts — empty state is content-sized; shrinking
+     mid-conversation (status lines, short answers) feels broken. */
+  height: min(560px, calc(100dvh - 48px));
+  min-height: min(560px, calc(100dvh - 48px));
+}
+.knoku-panel-modal.knoku-panel-in-chat .knoku-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px 18px;
+}
+.knoku-panel-modal .knoku-messages:not(.knoku-messages-modal-empty) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .knoku-msg-user { display: flex; justify-content: flex-end; }
 .knoku-msg-user-bubble {
@@ -304,7 +727,7 @@
 .knoku-status-chevron { transition: transform 0.15s; }
 .knoku-status-docs {
   display: flex; flex-direction: column; gap: 4px;
-  margin: 0 0 2px 22px; padding: 8px 10px;
+  margin: 0 0 2px 16px; padding: 8px 10px;
   border-radius: 8px; background: var(--bg-secondary);
 }
 .knoku-status-doc {
@@ -318,6 +741,19 @@
 .knoku-status-doc-path {
   color: var(--text-placeholder); font-family: 'SF Mono', Monaco, Consolas, monospace;
   font-size: 11px; overflow-wrap: anywhere;
+}
+.knoku-status-doc-link {
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background 0.12s;
+}
+.knoku-status-doc-link:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+.knoku-status-doc-link:hover .knoku-status-doc-title {
+  color: var(--primary);
 }
 .knoku-status-spinner {
   width: 14px; height: 14px; border: 2px solid var(--border);
@@ -473,7 +909,7 @@
 
 /* ===== Panel Input ===== */
 .knoku-input-area {
-  padding: 8px 12px 10px; border-top: 1px solid var(--border-light); flex-shrink: 0;
+  padding: 8px 16px 10px; border-top: 1px solid var(--border-light); flex-shrink: 0;
 }
 .knoku-input-box {
   display: flex; flex-direction: column;
@@ -492,7 +928,9 @@
 }
 .knoku-textarea::placeholder { color: var(--text-placeholder); }
 .knoku-input-actions {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 4px;
 }
 .knoku-attach-btn {
@@ -509,9 +947,33 @@
      is near-black). Background color is set inline by the caller. */
   color: var(--bg); cursor: pointer; display: flex;
   align-items: center; justify-content: center;
-  flex-shrink: 0; transition: opacity 0.1s; margin-left: auto;
+  flex-shrink: 0; transition: opacity 0.1s;
+  margin-left: auto;
 }
 .knoku-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.knoku-branding {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.knoku-branding a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 650;
+}
+.knoku-branding a:hover {
+  color: var(--knoku-primary-accent);
+  text-decoration: underline;
+}
 .knoku-img-preview {
   position: relative; margin: 0 0 10px; display: inline-block; width: fit-content;
 }
@@ -525,37 +987,70 @@
   font-size: 11px; cursor: pointer; display: flex;
   align-items: center; justify-content: center;
 }
-.knoku-branding {
-  display: flex; align-items: center; gap: 5px;
-  padding: 8px 2px 0;
-  color: var(--text-placeholder); font-size: 11px; line-height: 1.3;
-  flex-shrink: 0;
-}
-.knoku-branding a {
-  color: var(--text-muted); text-decoration: none; font-weight: 600;
-}
-.knoku-branding a:hover { color: var(--text-secondary); text-decoration: underline; }
 
 /* ===== Consent screen ===== */
-.knoku-consent {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
+.knoku-panel.knoku-panel-consent {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
-  padding: 20px;
-  z-index: 1;
+  overflow: hidden;
 }
-.knoku-consent-close {
-  position: absolute; top: 14px; right: 14px;
-  width: 34px; height: 34px; border: none; background: transparent;
-  border-radius: 8px; cursor: pointer; display: flex;
-  align-items: center; justify-content: center;
-  color: var(--text-placeholder); transition: background 0.1s, color 0.1s;
+/* Modal: compact opt-in dialog — not the full chat panel footprint. */
+.knoku-shell[data-knoku-layout="modal"] .knoku-panel.knoku-panel-consent {
+  width: min(380px, calc(100vw - 32px));
+  height: auto;
+  max-height: none;
 }
-.knoku-consent-close:hover {
-  background: var(--bg-hover); color: var(--text-secondary);
+/* Side panel: fill rail height, center the card vertically. */
+.knoku-shell[data-knoku-layout="overlay"] .knoku-panel.knoku-panel-consent,
+.knoku-shell[data-knoku-layout="push"] .knoku-panel.knoku-panel-consent,
+.knoku-shell:not([data-knoku-layout]) .knoku-panel.knoku-panel-consent {
+  height: 100%;
+  min-height: 0;
+}
+/* Top-right close — anchored to the panel, not the centered card. */
+.knoku-panel-consent > .knoku-panel-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
+}
+.knoku-panel-close {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-placeholder);
+  transition: background 0.1s, color 0.1s;
+}
+.knoku-panel-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+.knoku-consent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.knoku-shell[data-knoku-layout="overlay"] .knoku-consent,
+.knoku-shell[data-knoku-layout="push"] .knoku-consent,
+.knoku-shell:not([data-knoku-layout]) .knoku-consent {
+  flex: 1;
+  padding: 48px 20px 24px;
 }
 .knoku-consent-card {
-  max-width: 380px; text-align: center;
+  width: 100%; max-width: 380px;
+  text-align: center;
 }
 .knoku-consent-title {
   font-size: 16px; font-weight: 600; margin-bottom: 10px; color: var(--text);
@@ -570,19 +1065,76 @@
 }
 .knoku-consent-accept,
 .knoku-consent-reject {
-  padding: 10px 16px; border-radius: 10px;
-  font-size: 14px; font-weight: 500; cursor: pointer;
+  width: 100%;
+  padding: 11px 16px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
   border: 1px solid transparent; font-family: inherit;
+  display: block;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .knoku-consent-accept {
-  /* Use `var(--bg)` so text contrasts with the primary background in BOTH
-     themes — `#fff` was invisible in dark mode where primary resolves to
-     near-white. Light mode → near-black bg + white text; dark mode →
-     near-white bg + near-black text. */
-  color: var(--bg); background: var(--knoku-primary-accent);
+  background-color: var(--knoku-primary-accent, #171717);
+  color: var(--knoku-on-accent, #ffffff);
+  border-color: var(--knoku-primary-accent, #171717);
+}
+.knoku-consent-accept:hover {
+  filter: brightness(1.05);
 }
 .knoku-consent-reject {
   background: transparent; color: var(--text-secondary);
   border-color: var(--border);
 }
 .knoku-consent-reject:hover { background: var(--bg-hover); }
+
+.knoku-shell[data-knoku-deflector="true"] .knoku-backdrop {
+  pointer-events: none;
+}
+
+.knoku-deflector-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  padding: 12px 16px 0;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.knoku-deflector-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.knoku-deflector-btn-primary {
+  background-color: var(--knoku-primary-accent, #171717);
+  color: var(--knoku-on-accent, #ffffff);
+  border-color: var(--knoku-primary-accent, #171717);
+}
+
+.knoku-deflector-btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.knoku-deflector-btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.knoku-deflector-btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+.knoku-input-area-deflector {
+  border-top: none;
+  padding-top: 8px;
+}

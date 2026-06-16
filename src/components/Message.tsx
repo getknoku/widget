@@ -19,6 +19,8 @@ import { useState, useMemo } from 'preact/hooks'
 import type { Message as MessageType, SelectedDocument, SourceRef, TimelineItem } from '../types'
 import type { UIStrings } from '../i18n'
 import { getTurnstileToken } from '../turnstile'
+import { resolveDocLinkHref } from '../doc-link'
+import { cleanDocumentTitle, formatDocumentDisplay } from '../doc-display'
 
 interface Props {
   message: MessageType
@@ -93,7 +95,7 @@ export function Message({
   const cleanContent = cleanText(lastTextItem?.text ?? message.content ?? '')
 
   return (
-    <div class="knoku-msg-assistant">
+    <div class={`knoku-msg-assistant${message.isStreaming ? ' knoku-msg-streaming' : ''}`}>
       {/* Chronological timeline: narration text and search steps interleave
           in the order the agent emitted them. Replaces the older steps[] +
           thinking + content stack which rendered out of order. */}
@@ -125,6 +127,7 @@ export function Message({
               documents={item.documents}
               searchingLabel={t.searching}
               foundLabel={item.count !== undefined ? t.foundDocs(item.count) : ''}
+              primaryDomain={primaryDomain}
             />
           )
         }
@@ -135,7 +138,7 @@ export function Message({
           shape (no timeline). Kept for backward compat with previously
           stored sessions or any code path that bypasses the agent loop. */}
       {!hasTimeline && message.steps?.map((step, i) => (
-        <StatusStepView key={i} step={step} />
+        <StatusStepView key={i} step={step} primaryDomain={primaryDomain} />
       ))}
 
       {/* Legacy thinking section. */}
@@ -171,9 +174,9 @@ export function Message({
         <MarkdownText text={cleanContent} primaryDomain={primaryDomain} />
       )}
 
-      {/* Sources dropdown — collapsed by default so the answer stays the
-          focus; click toggles a vertical list of clickable source titles. */}
-      {uniqueSources.length > 0 && (
+      {/* Sources — only after the answer finishes streaming so the block
+          doesn't appear mid-render and jitter the scroll position. */}
+      {uniqueSources.length > 0 && !message.isStreaming && (
         <SourcesDropdown sources={uniqueSources} primaryDomain={primaryDomain} />
       )}
 
@@ -226,7 +229,7 @@ function SourcesDropdown({ sources, primaryDomain }: {
             const href = resolveSourceHref(src.url_path, src.path, primaryDomain)
             return (
               <a key={i} class="knoku-source-link" href={href} target="_blank" rel="noopener">
-                {src.title || src.path}
+                {cleanDocumentTitle(src.title) || src.path}
               </a>
             )
           })}
@@ -242,12 +245,14 @@ function SearchRow({
   documents,
   searchingLabel,
   foundLabel,
+  primaryDomain,
 }: {
   query: string
   count?: number
   documents?: SelectedDocument[]
   searchingLabel: string
   foundLabel: string
+  primaryDomain: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const hasDocuments = !!documents?.length
@@ -281,19 +286,32 @@ function SearchRow({
       )}
       {hasDocuments && expanded && (
         <div class="knoku-status-docs">
-          {documents!.map((doc, i) => (
-            <div key={`${doc.path}-${i}`} class="knoku-status-doc">
-              <span class="knoku-status-doc-title">{doc.title || doc.path}</span>
-              {doc.path && <span class="knoku-status-doc-path">{doc.path}</span>}
-            </div>
-          ))}
+          {documents!.map((doc, i) => {
+            const { title, subtitle } = formatDocumentDisplay(doc)
+            const href = doc.url_path
+              ? resolveSourceHref(doc.url_path, doc.path, primaryDomain)
+              : null
+            const inner = (
+              <>
+                <span class="knoku-status-doc-title">{title}</span>
+                {subtitle && <span class="knoku-status-doc-path">{subtitle}</span>}
+              </>
+            )
+            return href ? (
+              <a key={`${doc.path}-${i}`} class="knoku-status-doc knoku-status-doc-link" href={href} target="_blank" rel="noopener">
+                {inner}
+              </a>
+            ) : (
+              <div key={`${doc.path}-${i}`} class="knoku-status-doc">{inner}</div>
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
 
-function StatusStepView({ step }: { step: NonNullable<MessageType['steps']>[number] }) {
+function StatusStepView({ step, primaryDomain }: { step: NonNullable<MessageType['steps']>[number]; primaryDomain: string }) {
   const [expanded, setExpanded] = useState(false)
   const hasDocuments = step.icon === 'search' && !!step.documents?.length
 
@@ -323,12 +341,25 @@ function StatusStepView({ step }: { step: NonNullable<MessageType['steps']>[numb
       )}
       {hasDocuments && expanded && (
         <div class="knoku-status-docs">
-          {step.documents!.map((doc, i) => (
-            <div key={`${doc.path}-${i}`} class="knoku-status-doc">
-              <span class="knoku-status-doc-title">{doc.title || doc.path}</span>
-              {doc.path && <span class="knoku-status-doc-path">{doc.path}</span>}
-            </div>
-          ))}
+          {step.documents!.map((doc, i) => {
+            const { title, subtitle } = formatDocumentDisplay(doc)
+            const href = doc.url_path
+              ? resolveSourceHref(doc.url_path, doc.path, primaryDomain)
+              : null
+            const inner = (
+              <>
+                <span class="knoku-status-doc-title">{title}</span>
+                {subtitle && <span class="knoku-status-doc-path">{subtitle}</span>}
+              </>
+            )
+            return href ? (
+              <a key={`${doc.path}-${i}`} class="knoku-status-doc knoku-status-doc-link" href={href} target="_blank" rel="noopener">
+                {inner}
+              </a>
+            ) : (
+              <div key={`${doc.path}-${i}`} class="knoku-status-doc">{inner}</div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -496,7 +527,10 @@ function sourceLinkBase(primaryDomain: string): string {
   const fromConfig = (primaryDomain || '').replace(/\/+$/, '')
   if (fromConfig) return fromConfig
   if (typeof window === 'undefined') return ''
-  return window.location.origin
+  const origin = window.location.origin
+  // srcdoc preview iframes expose the opaque origin as the string "null".
+  if (!origin || origin === 'null') return ''
+  return origin
 }
 
 /**
@@ -699,7 +733,7 @@ function inl(s: string, primaryDomain: string) {
       // docs host, not whatever site the widget is mounted on. Prefix with
       // the project's primary_domain when one is set; otherwise let the
       // browser fall back to the current page's origin (legacy behavior).
-      const resolvedHref = resolveLinkHref(href, primaryDomain)
+      const resolvedHref = resolveDocLinkHref(href, primaryDomain)
       const safeHref = sanitizeHref(resolvedHref)
       if (!safeHref) return label
       return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`
@@ -710,17 +744,4 @@ function inl(s: string, primaryDomain: string) {
     // this the literal asterisks leak into the rendered output.
     .replace(/\*\*/g, '')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-}
-
-/**
- * Prepend `primaryDomain` to root-relative hrefs (`/foo/bar`). Absolute URLs,
- * fragment links (`#anchor`), query-only links (`?q=`), and parent/sibling
- * paths (`./`, `../`) are left alone — those are not document references.
- */
-function resolveLinkHref(href: string, primaryDomain: string): string {
-  if (!primaryDomain) return href
-  if (!href.startsWith('/')) return href
-  if (href.startsWith('//')) return href // protocol-relative, sanitizer rejects anyway
-  const base = primaryDomain.replace(/\/+$/, '')
-  return `${base}${href}`
 }

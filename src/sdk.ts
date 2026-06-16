@@ -14,6 +14,8 @@
  */
 
 import { mount, mountWithCleanup } from './widget'
+import { bindDeflectorForm, clearDeflectorPendingForm } from './deflector'
+import { removeLegacyScrollLockStyle, unlockPageScroll } from './scroll-lock'
 import { detectBrowserLanguage, getDictionary } from './i18n'
 import type {
   ConsentConfig,
@@ -29,16 +31,32 @@ import type {
 let activeHost: HTMLElement | null = null
 let activeDestroy: (() => void) | null = null
 let activeSelectorCleanup: (() => void) | null = null
+let activeDeflectorCleanup: (() => void) | null = null
+let activeDeflectorContinue: (() => void) | null = null
 
 function cleanupActiveWidget() {
   activeSelectorCleanup?.()
   activeSelectorCleanup = null
+  activeDeflectorCleanup?.()
+  activeDeflectorCleanup = null
+  activeDeflectorContinue = null
   activeDestroy?.()
   activeDestroy = null
   if (activeHost?.isConnected) {
     activeHost.remove()
   }
   activeHost = null
+  unlockPageScroll()
+  removeLegacyScrollLockStyle()
+  document.getElementById('knoku-page-push')?.remove()
+  if ((window as Window & { Knoku?: KnokuWidgetRuntime }).Knoku) {
+    delete (window as Window & { Knoku?: KnokuWidgetRuntime }).Knoku
+  }
+}
+
+/** Public teardown for host-initiated remounts (SPA route changes, etc.). */
+export function destroyKnokuWidget(): void {
+  cleanupActiveWidget()
 }
 
 /** Default consent copy in English. Used when `data-language` resolves to `en` and no `data-consent-*` overrides are set. */
@@ -64,12 +82,15 @@ export const DEFAULT_WIDGET_CONFIG: Omit<WidgetConfig, 'projectId'> = {
   primaryColorLight: '#171717',
   primaryColorDark: '#d4d4d4',
   greeting: '',
-  launcherText: 'Need help?',
-  launcherSubtitle: 'Ask AI',
+  launcherText: 'Ask Docs',
+  launcherSubtitle: '',
   launcherAlign: 'bottom-right',
   launcherHidden: false,
   launcherIcon: 'book-open',
-  layout: 'overlay',
+  launcherStyle: 'pill',
+  launcherIconPosition: 'right',
+  launcherShowIcon: true,
+  layout: 'modal',
   suggestedQuestions: [],
   brandingRequired: false,
   // Set by the backend config response (project.primary_domain). Empty string
@@ -86,6 +107,11 @@ export const DEFAULT_WIDGET_CONFIG: Omit<WidgetConfig, 'projectId'> = {
   language: 'en',
   consent: DEFAULT_CONSENT_CONFIG,
   componentStyles: {},
+  mode: 'chat',
+  deflectorEnabled: false,
+  formSelector: '',
+  subjectSelector: '',
+  bodySelector: '',
 }
 
 function resolvePrimaryColors(options: {
@@ -173,32 +199,50 @@ function mergeComponentStyles(local?: Record<string, Record<string, string>>): R
  * fetch — see `fetchWidgetConfig` for that.
  */
 export function createWidgetConfig(options: KnokuWidgetInitOptions): WidgetConfig {
+  const mode = options.mode === 'deflector' ? 'deflector' : 'chat'
   const colors = resolvePrimaryColors(options, DEFAULT_WIDGET_CONFIG.primaryColorLight, DEFAULT_WIDGET_CONFIG.primaryColorDark)
   const language = options.language || detectBrowserLanguage() || 'en'
   const defaultConsent = getDefaultConsentConfig(language)
+  const launcherHidden = mode === 'deflector'
+    ? true
+    : (options.launcherHidden ?? DEFAULT_WIDGET_CONFIG.launcherHidden)
   return {
     projectId: options.projectId,
     apiUrl: options.apiUrl || DEFAULT_WIDGET_CONFIG.apiUrl,
     theme: options.theme || DEFAULT_WIDGET_CONFIG.theme,
     primaryColorLight: colors.light,
     primaryColorDark: colors.dark,
-    greeting: options.greeting || DEFAULT_WIDGET_CONFIG.greeting,
+    greeting: options.greeting || (mode === 'deflector'
+      ? (getDictionary(language).deflectorGreeting ?? '')
+      : DEFAULT_WIDGET_CONFIG.greeting),
     launcherText: options.launcherText || DEFAULT_WIDGET_CONFIG.launcherText,
-    launcherSubtitle: options.launcherSubtitle || DEFAULT_WIDGET_CONFIG.launcherSubtitle,
+    launcherSubtitle: options.launcherSubtitle ?? DEFAULT_WIDGET_CONFIG.launcherSubtitle,
     launcherAlign: options.launcherAlign || DEFAULT_WIDGET_CONFIG.launcherAlign,
-    launcherHidden: options.launcherHidden ?? DEFAULT_WIDGET_CONFIG.launcherHidden,
+    launcherHidden,
     launcherIcon: options.launcherIcon || DEFAULT_WIDGET_CONFIG.launcherIcon,
+    launcherStyle: options.launcherStyle || DEFAULT_WIDGET_CONFIG.launcherStyle,
+    launcherIconPosition: options.launcherIconPosition || DEFAULT_WIDGET_CONFIG.launcherIconPosition,
+    launcherShowIcon: options.launcherShowIcon ?? DEFAULT_WIDGET_CONFIG.launcherShowIcon,
     layout: options.layout || DEFAULT_WIDGET_CONFIG.layout,
     suggestedQuestions: normalizeSuggestions(options.suggestedQuestions),
     brandingRequired: DEFAULT_WIDGET_CONFIG.brandingRequired,
-    // Filled in by fetchWidgetConfig from the remote response; not caller-settable.
-    primaryDomain: DEFAULT_WIDGET_CONFIG.primaryDomain,
+    primaryDomain:
+      typeof options.primaryDomain === 'string'
+        ? options.primaryDomain.trim()
+        : DEFAULT_WIDGET_CONFIG.primaryDomain,
     mcpEnabled: DEFAULT_WIDGET_CONFIG.mcpEnabled,
     mcpUrl: DEFAULT_WIDGET_CONFIG.mcpUrl,
     turnstileSiteKey: DEFAULT_WIDGET_CONFIG.turnstileSiteKey,
     language,
     consent: mergeConsent(options.consent, defaultConsent),
     componentStyles: mergeComponentStyles(options.componentStyles),
+    preview: options.preview === true,
+    previewSurface: options.previewSurface,
+    mode,
+    deflectorEnabled: DEFAULT_WIDGET_CONFIG.deflectorEnabled,
+    formSelector: (options.formSelector || '').trim(),
+    subjectSelector: (options.subjectSelector || '').trim(),
+    bodySelector: (options.bodySelector || '').trim(),
   }
 }
 
@@ -210,6 +254,36 @@ export function createWidgetConfig(options: KnokuWidgetInitOptions): WidgetConfi
  */
 export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promise<WidgetConfig | null> {
   const localConfig = createWidgetConfig(options)
+
+  const mergeRemoteConfig = async (config: WidgetConfig): Promise<WidgetConfig> => {
+    try {
+      const res = await fetch(`${config.apiUrl}/api/v1/config/${config.projectId}`)
+      if (!res.ok) return config
+      const remoteConfig = await res.json() as {
+        primary_domain?: string
+        branding_required?: boolean
+      }
+      const remotePrimaryDomain =
+        typeof remoteConfig?.primary_domain === 'string' ? remoteConfig.primary_domain.trim() : ''
+      const remoteBrandingRequired = typeof remoteConfig?.branding_required === 'boolean'
+        ? remoteConfig.branding_required
+        : undefined
+      return {
+        ...config,
+        ...(remotePrimaryDomain ? { primaryDomain: remotePrimaryDomain } : {}),
+        ...(remoteBrandingRequired !== undefined
+          ? { brandingRequired: remoteBrandingRequired }
+          : {}),
+      }
+    } catch {
+      return config
+    }
+  }
+
+  // Dashboard live preview: mount from local options; still backfill remote flags.
+  if (options.preview === true) {
+    return mergeRemoteConfig(localConfig)
+  }
 
   try {
     const res = await fetch(`${localConfig.apiUrl}/api/v1/config/${localConfig.projectId}`)
@@ -223,6 +297,7 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
       mcp_enabled?: boolean
       mcp_url?: string
       turnstile_site_key?: string
+      deflector_enabled?: boolean
     }
     if (remoteConfig && remoteConfig.active === false) {
       if (remoteConfig.disabled_reason) {
@@ -241,6 +316,12 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
     const remoteTurnstileSiteKey = typeof remoteConfig?.turnstile_site_key === 'string'
       ? remoteConfig.turnstile_site_key
       : ''
+    const remoteDeflectorEnabled = remoteConfig?.deflector_enabled === true
+
+    if (localConfig.mode === 'deflector' && !remoteDeflectorEnabled) {
+      console.warn('Knoku: support form deflector requires a Business plan')
+      return null
+    }
 
     return {
       ...localConfig,
@@ -249,6 +330,7 @@ export async function fetchWidgetConfig(options: KnokuWidgetInitOptions): Promis
       mcpEnabled: remoteMCPEnabled && remoteMCPUrl !== '',
       mcpUrl: remoteMCPUrl,
       turnstileSiteKey: remoteTurnstileSiteKey,
+      deflectorEnabled: remoteDeflectorEnabled,
     }
   } catch {
     return null
@@ -267,6 +349,11 @@ export async function initKnokuWidget(options: KnokuWidgetInitOptions): Promise<
   const config = await fetchWidgetConfig(options)
   if (!config) return null
 
+  if (config.mode === 'deflector' && !config.formSelector) {
+    console.warn('Knoku: data-form-selector is required for data-mode="deflector"')
+    return null
+  }
+
   const hostId = options.hostId || 'knoku-widget'
   const host = document.createElement('div')
   host.id = hostId
@@ -281,6 +368,32 @@ export async function initKnokuWidget(options: KnokuWidgetInitOptions): Promise<
   activeHost = host
   activeDestroy = mounted.destroy
   activeSelectorCleanup = bindOpenSelector(options.openSelector)
+
+  const runtime: KnokuWidgetRuntime = {
+    ...mounted.runtime,
+    destroy: () => destroyKnokuWidget(),
+  }
+  ;(window as Window & { Knoku?: KnokuWidgetRuntime }).Knoku = runtime
+
+  if (config.mode === 'deflector' && config.formSelector) {
+    const bound = bindDeflectorForm({
+      formSelector: config.formSelector,
+      subjectSelector: config.subjectSelector || undefined,
+      bodySelector: config.bodySelector || undefined,
+      onQuestion: (question) => {
+        window.dispatchEvent(new CustomEvent('knoku:ask', { detail: { question } }))
+      },
+    })
+    activeDeflectorCleanup = bound.cleanup
+    activeDeflectorContinue = bound.continueToSupport
+    const onContinue = () => activeDeflectorContinue?.()
+    window.addEventListener('knoku:deflector-continue', onContinue)
+    const prevCleanup = activeDeflectorCleanup
+    activeDeflectorCleanup = () => {
+      prevCleanup()
+      window.removeEventListener('knoku:deflector-continue', onContinue)
+    }
+  }
 
   return shadow
 }

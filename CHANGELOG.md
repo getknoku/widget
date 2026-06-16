@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-16
+
+### Added
+- Support-form deflector mode (`data-mode="deflector"` plus `data-form-selector`, optional subject/body selectors). Intercepts form submit, opens an inline docs search first, then lets the visitor continue to the ticket form or mark the question resolved.
+- `layout: 'modal'` — centered dialog with backdrop and scroll lock. Modal is the new default; `overlay` and `push` still work via `data-layout`.
+- Image attachments in the composer (PNG/JPEG/WebP, 5 MB cap) sent as base64 on chat requests.
+- One-click regenerate on the last assistant answer (once per turn).
+- Panel widen toggle on overlay/push layouts; hidden in modal.
+- Dashboard live-preview hooks (`preview`, `previewSurface`) for the widget builder iframe.
+
+### Changed
+- **Breaking:** default layout is `modal` (was `overlay` in 0.3.x). Embeds that relied on the side rail need `data-layout="overlay"` or `data-layout="push"`.
+- Panel CSS rewritten around layout attributes (`data-knoku-layout`, modal example questions, deflector header copy).
+- Scroll lock split into `modal` vs `panel` modes so fixed navbars don't jump when a modal opens.
+
+### Fixed
+- Deflector form handler is a module singleton — React Strict Mode remounts no longer stack listeners and re-open the modal on "Continue to support".
+- Preview iframe could keep the panel visible after switching back to the launcher tab; the panel now unmounts when `previewSurface` is `launcher`.
+
 ## [0.3.4] - 2026-05-17
 
 ### Fixed
@@ -102,8 +121,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release.
 
-[Unreleased]: https://github.com/getknoku/widget/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/getknoku/widget/compare/v0.2.4...v0.3.0
+[Unreleased]: https://github.com/getknoku/widget/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/getknoku/widget/compare/v0.3.4...v0.4.0
+[0.3.4]: https://github.com/getknoku/widget/compare/v0.3.3...v0.3.4
+[0.3.3]: https://github.com/getknoku/widget/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/getknoku/widget/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/getknoku/widget/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/getknoku/widget/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/getknoku/widget/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/getknoku/widget/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/getknoku/widget/compare/v0.2.0...v0.2.1

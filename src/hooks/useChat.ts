@@ -184,6 +184,9 @@ export function useChat(config: WidgetConfig) {
       if (imageBase64) {
         body.image = imageBase64
       }
+      if (config.mode === 'deflector') {
+        body.source = 'deflector'
+      }
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (config.turnstileSiteKey) {
@@ -505,6 +508,7 @@ function parseSelectedDocuments(payload: string): SelectedDocument[] {
         doc_id: typeof doc?.doc_id === 'string' ? doc.doc_id : '',
         path: typeof doc?.path === 'string' ? doc.path : '',
         title: typeof doc?.title === 'string' ? doc.title : '',
+        url_path: typeof doc?.url_path === 'string' ? doc.url_path : undefined,
       }))
       .filter((doc: SelectedDocument) => doc.path || doc.title)
   } catch {

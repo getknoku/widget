@@ -8,6 +8,7 @@
 export {
   DEFAULT_WIDGET_CONFIG,
   createWidgetConfig,
+  destroyKnokuWidget,
   fetchWidgetConfig,
   initKnokuWidget,
   mountKnokuWidget,
