@@ -28,6 +28,8 @@ export interface SourceRef {
   doc_id: string
   path: string
   url_path?: string
+  /** Absolute outbound URL from the backend (metadata.url, connector URL, etc.). */
+  url?: string
   title: string
   /** Inclusive line range, e.g. `"12-18"`. */
   lines: string

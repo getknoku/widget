@@ -216,7 +216,7 @@ function SourcesDropdown({ sources, primaryDomain }: {
       {open && (
         <div class="knoku-sources-list">
           {sources.map((src, i) => {
-            const href = resolveSourceHref(src.url_path, src.path, primaryDomain)
+            const href = resolveSourceHref(src.url, src.url_path, src.path, primaryDomain)
             return (
               <a key={i} class="knoku-source-link" href={href} target="_blank" rel="noopener">
                 {cleanDocumentTitle(src.title) || src.path}
@@ -407,13 +407,10 @@ function ActionButtons({
 function formatCopyText(content: string, sources: NonNullable<MessageType['sources']>, primaryDomain: string): string {
   if (!sources.length) return content
 
-  const base = sourceLinkBase(primaryDomain)
   const sourceLines = sources.map((src) => {
     const label = src.title || src.path
-    if (src.url_path) {
-      const url = src.url_path.startsWith('http') ? src.url_path : `${base}${src.url_path}`
-      return `- [${label}](${url})`
-    }
+    const href = resolveSourceHref(src.url, src.url_path, src.path, primaryDomain)
+    if (href) return `- [${label}](${href})`
     return src.path ? `- ${label} (${src.path})` : `- ${label}`
   })
 
@@ -442,15 +439,17 @@ function sourceLinkBase(primaryDomain: string): string {
  * canonical host. Falls back to the doc path turned into a slug when the
  * backend never resolved a public URL for this doc.
  */
-function resolveSourceHref(urlPath: string | undefined, path: string, primaryDomain: string): string {
-  const base = sourceLinkBase(primaryDomain)
-  if (urlPath) {
-    if (/^https?:/i.test(urlPath)) return urlPath
-    const rooted = urlPath.startsWith('/') ? urlPath : `/${urlPath}`
-    return `${base}${rooted}`
-  }
-  const slug = `/${path.replace(/\.mdx?$/, '').replace(/\/index$/, '')}`
-  return base ? `${base}${slug}` : slug
+function resolveSourceHref(
+  absoluteURL: string | undefined,
+  urlPath: string | undefined,
+  _path: string,
+  _primaryDomain: string,
+): string {
+  const direct = (absoluteURL || '').trim()
+  if (/^https?:/i.test(direct)) return direct
+  const fromPath = (urlPath || '').trim()
+  if (/^https?:/i.test(fromPath)) return fromPath
+  return ''
 }
 
 /**

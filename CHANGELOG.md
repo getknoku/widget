@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-17
+
+### Fixed
+- Sources links use each document’s absolute URL from the backend (`url` on SSE sources) instead of prefixing relative paths with the widget allowed domain.
+
 ## [0.4.1] - 2026-06-17
 
 ### Changed
