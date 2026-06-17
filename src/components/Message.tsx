@@ -16,11 +16,11 @@
  */
 
 import { useState, useMemo } from 'preact/hooks'
-import type { Message as MessageType, SelectedDocument, SourceRef, TimelineItem } from '../types'
+import type { Message as MessageType, SourceRef, TimelineItem } from '../types'
 import type { UIStrings } from '../i18n'
 import { getTurnstileToken } from '../turnstile'
 import { resolveDocLinkHref } from '../doc-link'
-import { cleanDocumentTitle, formatDocumentDisplay } from '../doc-display'
+import { cleanDocumentTitle } from '../doc-display'
 
 interface Props {
   message: MessageType
@@ -112,22 +112,12 @@ export function Message({
           )
         }
         if (item.kind === 'search') {
-          // Chip stays generic — narration rides above the chip as its own
-          // prose bubble (synthesized in useChat from the tool_args
-          // narration arg). The chip's job here is just step indication:
-          // "Searching documentation..." while in-flight, "Found N
-          // relevant documents" once the count is in. We deliberately do
-          // NOT echo the raw query in quotes — that pattern read as debug
-          // output.
           return (
             <SearchRow
               key={i}
-              query={item.query}
               count={item.count}
-              documents={item.documents}
               searchingLabel={t.searching}
               foundLabel={item.count !== undefined ? t.foundDocs(item.count) : ''}
-              primaryDomain={primaryDomain}
             />
           )
         }
@@ -138,7 +128,7 @@ export function Message({
           shape (no timeline). Kept for backward compat with previously
           stored sessions or any code path that bypasses the agent loop. */}
       {!hasTimeline && message.steps?.map((step, i) => (
-        <StatusStepView key={i} step={step} primaryDomain={primaryDomain} />
+        <StatusStepView key={i} step={step} />
       ))}
 
       {/* Legacy thinking section. */}
@@ -240,128 +230,41 @@ function SourcesDropdown({ sources, primaryDomain }: {
 }
 
 function SearchRow({
-  query: _query,
   count,
-  documents,
   searchingLabel,
   foundLabel,
-  primaryDomain,
 }: {
-  query: string
   count?: number
-  documents?: SelectedDocument[]
   searchingLabel: string
   foundLabel: string
-  primaryDomain: string
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const hasDocuments = !!documents?.length
   const isDone = count !== undefined
-
-  const inner = (
-    <>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <span class="knoku-status-text">
-        {isDone && foundLabel ? foundLabel : searchingLabel}
-      </span>
-      {hasDocuments && (
-        <svg class="knoku-status-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          style={{ transform: expanded ? 'rotate(90deg)' : 'none' }}>
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      )}
-    </>
-  )
 
   return (
     <div class="knoku-status-block">
-      {hasDocuments ? (
-        <button class="knoku-status-line knoku-status-button" onClick={() => setExpanded(!expanded)} type="button">
-          {inner}
-        </button>
-      ) : (
-        <div class="knoku-status-line">{inner}</div>
-      )}
-      {hasDocuments && expanded && (
-        <div class="knoku-status-docs">
-          {documents!.map((doc, i) => {
-            const { title, subtitle } = formatDocumentDisplay(doc)
-            const href = doc.url_path
-              ? resolveSourceHref(doc.url_path, doc.path, primaryDomain)
-              : null
-            const inner = (
-              <>
-                <span class="knoku-status-doc-title">{title}</span>
-                {subtitle && <span class="knoku-status-doc-path">{subtitle}</span>}
-              </>
-            )
-            return href ? (
-              <a key={`${doc.path}-${i}`} class="knoku-status-doc knoku-status-doc-link" href={href} target="_blank" rel="noopener">
-                {inner}
-              </a>
-            ) : (
-              <div key={`${doc.path}-${i}`} class="knoku-status-doc">{inner}</div>
-            )
-          })}
-        </div>
-      )}
+      <div class="knoku-status-line">
+        {!isDone ? <div class="knoku-status-spinner" /> : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        )}
+        <span class="knoku-status-text">
+          {isDone && foundLabel ? foundLabel : searchingLabel}
+        </span>
+      </div>
     </div>
   )
 }
 
-function StatusStepView({ step, primaryDomain }: { step: NonNullable<MessageType['steps']>[number]; primaryDomain: string }) {
-  const [expanded, setExpanded] = useState(false)
-  const hasDocuments = step.icon === 'search' && !!step.documents?.length
-
-  const content = (
-    <>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <span>{step.text}</span>
-      {hasDocuments && (
-        <svg class="knoku-status-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          style={{ transform: expanded ? 'rotate(90deg)' : 'none' }}>
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      )}
-    </>
-  )
-
+function StatusStepView({ step }: { step: NonNullable<MessageType['steps']>[number] }) {
   return (
     <div class="knoku-status-block">
-      {hasDocuments ? (
-        <button class="knoku-status-line knoku-status-button" onClick={() => setExpanded(!expanded)} type="button">
-          {content}
-        </button>
-      ) : (
-        <div class="knoku-status-line">{content}</div>
-      )}
-      {hasDocuments && expanded && (
-        <div class="knoku-status-docs">
-          {step.documents!.map((doc, i) => {
-            const { title, subtitle } = formatDocumentDisplay(doc)
-            const href = doc.url_path
-              ? resolveSourceHref(doc.url_path, doc.path, primaryDomain)
-              : null
-            const inner = (
-              <>
-                <span class="knoku-status-doc-title">{title}</span>
-                {subtitle && <span class="knoku-status-doc-path">{subtitle}</span>}
-              </>
-            )
-            return href ? (
-              <a key={`${doc.path}-${i}`} class="knoku-status-doc knoku-status-doc-link" href={href} target="_blank" rel="noopener">
-                {inner}
-              </a>
-            ) : (
-              <div key={`${doc.path}-${i}`} class="knoku-status-doc">{inner}</div>
-            )
-          })}
-        </div>
-      )}
+      <div class="knoku-status-line">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <span>{step.text}</span>
+      </div>
     </div>
   )
 }

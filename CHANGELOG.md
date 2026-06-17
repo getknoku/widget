@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-17
+
+### Changed
+- Answer text paints directly from SSE `text` events again (removed the `requestAnimationFrame` smoothing buffer added in 0.3.1).
+
+### Fixed
+- Search-step row shows a spinner while in-flight and a compact “Found N relevant documents” label when done — no expandable retrieved-doc list under the chip (sources stay in the Sources dropdown).
+- Legacy `steps[]` search rows use the same compact layout.
+
 ## [0.4.0] - 2026-06-16
 
 ### Added
@@ -121,7 +130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release.
 
-[Unreleased]: https://github.com/getknoku/widget/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/getknoku/widget/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/getknoku/widget/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/getknoku/widget/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/getknoku/widget/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/getknoku/widget/compare/v0.3.2...v0.3.3
