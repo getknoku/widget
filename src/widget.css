@@ -883,6 +883,10 @@
   padding: 4px 0;
 }
 .knoku-source-link:hover { text-decoration: underline; }
+.knoku-source-link-static {
+  color: var(--text); cursor: default;
+}
+.knoku-source-link-static:hover { text-decoration: none; }
 .knoku-source-link-path {
   font-size: 11px; color: var(--text-placeholder);
   margin-left: 6px;

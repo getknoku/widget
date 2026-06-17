@@ -27,11 +27,23 @@ export function normalizeDocLinkHref(href: string): string {
   return `/${h.replace(/^\/+/, '')}`
 }
 
-/** Resolve a docs link against the project's canonical host. */
-export function resolveDocLinkHref(href: string, primaryDomain: string): string {
-  const normalized = normalizeDocLinkHref(href)
-  const base = (primaryDomain || '').replace(/\/+$/, '')
-  if (!base) return normalized
-  if (!normalized.startsWith('/') || normalized.startsWith('//')) return normalized
-  return `${base}${normalized}`
+/**
+ * Resolve an agent-emitted link for use as an href. Absolute links (and
+ * mailto/tel/anchors) pass through. Host-rooted relative paths (`/docs/...`)
+ * are dropped: there is no docs-host config anymore, so the backend emits
+ * absolute citation URLs and a leftover relative path would otherwise resolve
+ * against the embed host (wrong site). An empty return renders as plain text.
+ */
+export function resolveDocLinkHref(href: string, _primaryDomain?: string): string {
+  const normalized = normalizeDocLinkHref(href).trim()
+  if (
+    /^https?:/i.test(normalized) ||
+    normalized.startsWith('mailto:') ||
+    normalized.startsWith('tel:') ||
+    normalized.startsWith('#') ||
+    normalized.startsWith('?')
+  ) {
+    return normalized
+  }
+  return ''
 }

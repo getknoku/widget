@@ -217,9 +217,15 @@ function SourcesDropdown({ sources, primaryDomain }: {
         <div class="knoku-sources-list">
           {sources.map((src, i) => {
             const href = resolveSourceHref(src.url, src.url_path, src.path, primaryDomain)
+            const label = cleanDocumentTitle(src.title) || 'Source'
+            // No outbound URL (e.g. uploaded files) → plain text, never a link
+            // to the embed host and never the raw storage path.
+            if (!href) {
+              return <span key={i} class="knoku-source-link knoku-source-link-static">{label}</span>
+            }
             return (
               <a key={i} class="knoku-source-link" href={href} target="_blank" rel="noopener">
-                {cleanDocumentTitle(src.title) || src.path}
+                {label}
               </a>
             )
           })}
@@ -408,10 +414,10 @@ function formatCopyText(content: string, sources: NonNullable<MessageType['sourc
   if (!sources.length) return content
 
   const sourceLines = sources.map((src) => {
-    const label = src.title || src.path
+    const label = cleanDocumentTitle(src.title) || 'Source'
     const href = resolveSourceHref(src.url, src.url_path, src.path, primaryDomain)
-    if (href) return `- [${label}](${href})`
-    return src.path ? `- ${label} (${src.path})` : `- ${label}`
+    // Never emit the raw storage path (crawl/<hash>.md, uploads/<hash>.md).
+    return href ? `- [${label}](${href})` : `- ${label}`
   })
 
   return `${content}\n\nSources:\n${sourceLines.join('\n')}`

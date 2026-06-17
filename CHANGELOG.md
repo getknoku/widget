@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-06-17
+
+### Fixed
+- Sources dropdown links use the backend’s absolute `url` on each source (or absolute `url_path`); no longer prefix relative paths with the widget allowed domain.
+
 ## [0.4.2] - 2026-06-17
 
 ### Fixed
