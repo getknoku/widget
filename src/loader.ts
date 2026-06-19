@@ -9,6 +9,7 @@
 
 import { initKnokuWidget } from './sdk'
 import { detectBrowserLanguage, isSupportedLanguage } from './i18n'
+import { parseSuggestedQuestionsCsv } from './suggested-questions-format'
 import type { ConsentConfig, KnokuWidgetInitOptions, SuggestedQuestion } from './types'
 import { ALLOWED_CSS_PROPERTIES, ALLOWED_STATES, SLOT_NAMES_BY_LENGTH } from './component-style-spec'
 
@@ -199,25 +200,14 @@ function readCSV(script: HTMLScriptElement, name: string): string[] | undefined 
  * Parse `data-suggested-questions` with optional `|icon` per item.
  * Format: `Question 1,Question 2|icon-name,Question 3|icon-name`. Items
  * without `|` get the default icon (sparkle). Empty entries are dropped.
- * For questions containing `,` or `|`, use the npm path with the object form.
+ * Commas and pipes inside question text are escaped as `\,` and `\|`.
  */
 function readSuggestedQuestions(script: HTMLScriptElement): SuggestedQuestion[] | undefined {
   const value = readString(script, 'suggested-questions')
   if (!value) return undefined
-  const items: SuggestedQuestion[] = []
-  for (const raw of value.split(',')) {
-    const trimmed = raw.trim()
-    if (!trimmed) continue
-    const pipeIdx = trimmed.indexOf('|')
-    if (pipeIdx === -1) {
-      items.push(trimmed)
-      continue
-    }
-    const text = trimmed.slice(0, pipeIdx).trim()
-    const icon = trimmed.slice(pipeIdx + 1).trim()
-    if (!text) continue
-    items.push(icon ? { text, icon } : text)
-  }
+  const items: SuggestedQuestion[] = parseSuggestedQuestionsCsv(value).map((q) =>
+    q.icon ? { text: q.text, icon: q.icon } : q.text,
+  )
   return items.length > 0 ? items : undefined
 }
 

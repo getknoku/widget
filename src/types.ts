@@ -33,6 +33,8 @@ export interface SourceRef {
   title: string
   /** Inclusive line range, e.g. `"12-18"`. */
   lines: string
+  /** True when the answer includes an inline markdown link to this doc. */
+  linked?: boolean
 }
 
 /** Document selected for inspection inside an assistant tool step. */
@@ -88,6 +90,7 @@ export interface Message {
  * - Raw inner SVG content starting with `<` (npm path only — script-tag
  *   `data-suggested-questions` cannot carry SVG safely). Sanitized via
  *   `sanitizeIconSvg`; rejected content falls back to `sparkle`.
+ * - Commas and pipes in script-tag question text must be escaped (`\,`, `\|`).
  *
  * Unknown built-in names also fall back to `sparkle`.
  */
