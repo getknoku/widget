@@ -18,7 +18,7 @@
 import { useState, useMemo } from 'preact/hooks'
 import type { Message as MessageType, SourceRef, TimelineItem } from '../types'
 import type { UIStrings } from '../i18n'
-import { getTurnstileToken } from '../turnstile'
+import { getTurnstileHeaders } from '../turnstile'
 import { resolveDocLinkHref } from '../doc-link'
 import { cleanDocumentTitle } from '../doc-display'
 
@@ -352,15 +352,9 @@ function ActionButtons({
     setLiked(nextState)
 
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (turnstileSiteKey) {
-        try {
-          const token = await getTurnstileToken(turnstileSiteKey, 'feedback')
-          if (token) headers['cf-turnstile-response'] = token
-        } catch {
-          // Token fetch failed; the request goes out anyway, backend will
-          // 403 and the catch below rolls the UI back.
-        }
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(await getTurnstileHeaders(turnstileSiteKey, 'feedback')),
       }
       const res = await fetch(`${apiUrl}/api/v1/feedback`, {
         method: 'POST',

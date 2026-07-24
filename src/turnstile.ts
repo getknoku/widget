@@ -23,20 +23,21 @@ let scriptReadyPromise: Promise<void> | null = null
 let activeSiteKey: string | null = null
 
 interface TurnstileRenderOptions {
-  sitekey: string
-  action?: string
+  readonly sitekey: string
+  readonly action?: string
   // Per Cloudflare docs: 'normal' | 'flexible' | 'compact'. There is no
   // 'invisible' size; for hidden-by-default UX use `appearance` instead.
-  size?: 'normal' | 'compact' | 'flexible'
+  readonly size?: 'normal' | 'compact' | 'flexible'
   // 'interaction-only' is the closest thing to invisible: Cloudflare's risk
   // engine renders nothing unless the visitor needs to complete an
   // interactive challenge. Pairs with any widget Mode (Managed / Non-
   // interactive / Invisible) on the dashboard side.
-  appearance?: 'always' | 'execute' | 'interaction-only'
-  callback?: (token: string) => void
-  'error-callback'?: () => void
-  'expired-callback'?: () => void
-  retry?: 'auto' | 'never'
+  readonly appearance?: 'always' | 'execute' | 'interaction-only'
+  readonly callback?: (token: string) => void
+  readonly 'error-callback'?: (errorCode?: string) => boolean | void
+  readonly 'expired-callback'?: () => void
+  readonly retry?: 'auto' | 'never'
+  readonly 'retry-interval'?: number
 }
 
 declare global {
@@ -101,7 +102,7 @@ export async function getTurnstileToken(siteKey: string, action: 'chat' | 'feedb
   if (!siteKey) return ''
   await ensureTurnstileReady(siteKey)
   const ts = window.turnstile
-  if (!ts) return ''
+  if (!ts) throw new Error('turnstile_unavailable')
 
   return new Promise<string>((resolve, reject) => {
     // Place the container in the viewport (bottom-right, max z-index) rather
@@ -140,13 +141,26 @@ export async function getTurnstileToken(siteKey: string, action: 'chat' | 'feedb
         sitekey: siteKey,
         action,
         appearance: 'interaction-only',
-        retry: 'never',
+        retry: 'auto',
+        'retry-interval': 3_000,
         callback: (token) => finish(() => resolve(token)),
-        'error-callback': () => finish(() => reject(new Error('turnstile_error'))),
+        'error-callback': () => false,
         'expired-callback': () => finish(() => reject(new Error('turnstile_expired'))),
       })
     } catch (err) {
       finish(() => reject(err instanceof Error ? err : new Error('turnstile_render_failed')))
     }
   })
+}
+
+export async function getTurnstileHeaders(
+  siteKey: string | undefined,
+  action: 'chat' | 'feedback',
+): Promise<Readonly<Record<string, string>>> {
+  if (!siteKey) return {}
+
+  const token = await getTurnstileToken(siteKey, action)
+  if (!token) throw new Error('turnstile_token_missing')
+
+  return { 'cf-turnstile-response': token }
 }
